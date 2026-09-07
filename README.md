@@ -131,4 +131,3 @@ npm run test:e2e
 Unit tests cover schema count, input validation, risk rules and live fallback. Integration tests use real PostGIS to verify seed idempotence, indexes, movement persistence/replay, spatial queries, copilot answers, all three simulations, cascade paths, reset and timetable replenishment. Browser tests use the real API for flight selection, replay, overlays, alternates, cross-page persistence, mobile controls and copilot results. CI starts a disposable PostGIS service and runs these checks; integration tests skip explicitly if `TEST_DATABASE_URL` is absent.
 
 Map tiles are OpenStreetMap with visible attribution. The site uses IBM Plex fonts and Lucide icons; no proprietary flight-tracker assets are copied.
-
