@@ -28,15 +28,16 @@ def test_rotation_replenishment_preserves_history():
         original = db.execute(text("SELECT count(*) FROM flight_position")).scalar()
         future = datetime.now(timezone.utc) + timedelta(days=5)
         before = db.execute(text("SELECT count(*) FROM flight")).scalar()
+        aircraft = db.execute(text("SELECT count(*) FROM aircraft")).scalar()
         replenish(db, future)
-        assert db.execute(text("SELECT count(*) FROM flight")).scalar() == before + 128
+        assert db.execute(text("SELECT count(*) FROM flight")).scalar() == before + aircraft * 4
         assert db.execute(text("SELECT count(*) FROM flight_position")).scalar() == original
         assert (
             db.execute(
                 text("SELECT count(*) FROM flight WHERE scheduled_departure<:now AND scheduled_arrival>:now"),
                 {"now": future},
             ).scalar()
-            == 32
+            == aircraft
         )
         db.rollback()
     engine.dispose()

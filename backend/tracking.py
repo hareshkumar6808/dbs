@@ -26,13 +26,19 @@ def replenish(db, now):
     route_map = {(r["origin_airport_id"], r["destination_airport_id"]): r for r in rows(db, "SELECT * FROM route")}
     for a in exhausted:
         origin, dest = a["destination_airport_id"], a["origin_airport_id"]
-        route = route_map[origin, dest]
+        route = route_map.get((origin, dest))
+        if route is None:
+            route = next(r for (route_origin, _), r in route_map.items() if route_origin == origin)
+            dest = route["destination_airport_id"]
         departure = max(
             a["scheduled_arrival"] + timedelta(minutes=25),
             now - timedelta(minutes=route["estimated_duration_minutes"] * (0.15 + (a["aircraft_id"] % 7) * 0.1)),
         )
         for leg in range(4):
-            route = route_map[origin, dest]
+            route = route_map.get((origin, dest))
+            if route is None:
+                route = next(r for (route_origin, _), r in route_map.items() if route_origin == origin)
+                dest = route["destination_airport_id"]
             arrival = departure + timedelta(minutes=route["estimated_duration_minutes"])
             f = Flight(
                 flight_number=f"{a['iata_code']}{500 + a['aircraft_id'] * 4 + leg}",
