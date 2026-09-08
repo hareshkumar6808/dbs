@@ -1,19 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
-  ArrowRight,
   ChevronDown,
-  CloudLightning,
   Crosshair,
   FlaskConical,
   Layers as LayersIcon,
   Map as MapIcon,
   MessageSquare,
+  Moon,
   Plane,
   Radar,
   RefreshCw,
   Search,
-  ShieldAlert,
+  SlidersHorizontal,
+  Sun,
   X,
 } from "lucide-react";
 import FlightMap from "./components/FlightMap";
@@ -24,6 +24,9 @@ import { api } from "./services/api";
 import type { Airport, Alternate, Layers, MapState, Position } from "./types";
 
 export default function App() {
+  const [theme, setTheme] = useState<"dark" | "light">(() =>
+    localStorage.getItem("aeropulse-theme") === "light" ? "light" : "dark",
+  );
   const [state, setState] = useState<MapState>();
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -36,20 +39,25 @@ export default function App() {
   const [riskFilter, setRiskFilter] = useState(false);
   const [affected, setAffected] = useState(false);
   const [layers, setLayers] = useState<Layers>({
-    weather: true,
-    airspace: true,
+    weather: false,
+    airspace: false,
     airports: true,
-    routes: true,
+    routes: false,
     disruptions: true,
   });
   const [layersOpen, setLayersOpen] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [alternates, setAlternates] = useState<Alternate[]>([]);
   const [history, setHistory] = useState<Position[]>([]);
   const [replay, setReplay] = useState<Position>();
   const [replayIndex, setReplayIndex] = useState(-1);
   const [airport, setAirport] = useState<Airport>();
   const [reset, setReset] = useState(0);
-  const [mobileList, setMobileList] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("aeropulse-theme", theme);
+  }, [theme]);
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
@@ -80,7 +88,7 @@ export default function App() {
     setReplayIndex(-1);
     setAlternates([]);
     setAirport(undefined);
-    setMobileList(false);
+    setSidebarOpen(false);
   };
   const visible = useMemo(
     () =>
@@ -91,7 +99,11 @@ export default function App() {
               .toLowerCase()
               .includes(search.toLowerCase())) &&
           (!airline || f.airline_id === +airline) &&
-          (!status || f.flight_status === status) &&
+          (!status ||
+            (status === "GROUND"
+              ? !["EN_ROUTE", "APPROACHING"].includes(f.flight_status) &&
+                !!f.position
+              : f.flight_status === status)) &&
           (!riskFilter || f.risk.level === "HIGH") &&
           (!affected || f.impacts.length),
       ) ?? [],
@@ -165,6 +177,13 @@ export default function App() {
             {state ? time(state.generated_at) : "--:--"} <small>UTC</small>
           </span>
           <button
+            className="theme-toggle"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button
             className="copilot-toggle"
             aria-label="Operations copilot"
             onClick={() => openTool("copilot")}
@@ -176,17 +195,24 @@ export default function App() {
       </header>
       <div className="workspace">
         <aside
-          className={`traffic-sidebar ${mobileList ? "mobile-open" : ""}`}
+          className={`traffic-sidebar ${sidebarOpen ? "open" : "collapsed"}`}
           aria-label="Traffic explorer"
         >
           <div className="sidebar-title">
             <div>
-              <span className="eyebrow">INDIAN AIRSPACE</span>
-              <h1>Network overview</h1>
+              <span className="eyebrow">INDIA-LINKED TRAFFIC</span>
+              <h1>Flight explorer</h1>
             </div>
-            <span className="region-code">IN / 01</span>
+            <button className="icon-button sidebar-close" aria-label="Close flight explorer" onClick={() => setSidebarOpen(false)}>
+              <X size={16} />
+            </button>
           </div>
           <div className="network-metrics">
+            <button onClick={clear}>
+              <Radar size={16} />
+              <strong>{state?.network.daily_operations.toLocaleString() ?? "—"}</strong>
+              <span>Daily ops</span>
+            </button>
             <button
               onClick={() => {
                 clear();
@@ -199,21 +225,14 @@ export default function App() {
             </button>
             <button
               onClick={() => {
-                setRiskFilter(!riskFilter);
+                clear();
+                setStatus("GROUND");
               }}
-              className={riskFilter ? "active" : ""}
-            >
-              <ShieldAlert size={16} />
-              <strong>{state?.network.high_risk ?? "—"}</strong>
-              <span>High risk</span>
-            </button>
-            <button
-              onClick={() => setAffected(!affected)}
-              className={affected ? "active" : ""}
+              className={status === "GROUND" ? "active" : ""}
             >
               <Activity size={16} />
-              <strong>{state?.network.affected ?? "—"}</strong>
-              <span>Affected</span>
+              <strong>{state?.network.ground ?? "—"}</strong>
+              <span>On ground</span>
             </button>
           </div>
           <div className="search-wrap">
@@ -242,7 +261,7 @@ export default function App() {
                   onClick={() => {
                     setAirport(a);
                     setSelectedId(undefined);
-                    setMobileList(false);
+                    setSidebarOpen(false);
                   }}
                 >
                   <Crosshair size={13} />
@@ -252,6 +271,16 @@ export default function App() {
               ))}
             </div>
           )}
+          <button
+            className="filters-toggle"
+            onClick={() => setFiltersOpen(!filtersOpen)}
+            aria-expanded={filtersOpen}
+          >
+            <SlidersHorizontal size={13} /> Filters
+            {(airline || status || riskFilter || affected) && <span>Active</span>}
+            <ChevronDown size={12} />
+          </button>
+          {filtersOpen && <>
           <div className="filters">
             <label className="select-wrap">
               <select
@@ -276,6 +305,11 @@ export default function App() {
               >
                 <option value="">All statuses</option>
                 <option value="EN_ROUTE">En route</option>
+                <option value="APPROACHING">Approaching</option>
+                <option value="TAXIING">Taxiing</option>
+                <option value="BOARDING">Boarding</option>
+                <option value="DELAYED">Delayed</option>
+                <option value="GROUND">All on ground</option>
                 <option value="SCHEDULED">Scheduled</option>
                 <option value="LANDED">Landed</option>
                 <option value="CANCELLED">Cancelled</option>
@@ -304,6 +338,7 @@ export default function App() {
               </button>
             )}
           </div>
+          </>}
           <div className="list-heading">
             <span>FLIGHT DIRECTORY</span>
             <span>{visible.length} flights</span>
@@ -315,7 +350,7 @@ export default function App() {
                 <p>Connecting to the network…</p>
               </div>
             ) : visible.length ? (
-              visible.map((f) => (
+              visible.slice(0, 150).map((f) => (
                 <button
                   data-testid="flight-row"
                   key={f.flight_id}
@@ -391,6 +426,7 @@ export default function App() {
               replay={replay}
               airport={airport}
               reset={reset}
+              theme={theme}
             />
           ) : (
             <div className="map-placeholder">
@@ -422,7 +458,7 @@ export default function App() {
             <div className="map-toolbar">
               <button
                 className="mobile-list-toggle"
-                onClick={() => setMobileList(!mobileList)}
+                onClick={() => setSidebarOpen(!sidebarOpen)}
               >
                 <Search size={15} /> Flights
               </button>
@@ -470,25 +506,6 @@ export default function App() {
             <div className="map-error" role="alert">
               Showing last received data. {error}
               <button onClick={refresh}>Retry</button>
-            </div>
-          )}
-          {!selected && !tool && state && (
-            <div className="map-brief panel">
-              <span className="eyebrow">OPERATIONAL PICTURE</span>
-              <div>
-                <CloudLightning size={18} />
-                <strong>
-                  {state.weather.length} active weather{" "}
-                  {state.weather.length === 1 ? "region" : "regions"}
-                </strong>
-              </div>
-              <p>
-                {state.network.high_risk} flights require attention. Select an
-                aircraft to inspect its risk factors.
-              </p>
-              <button onClick={() => openTool("lab")}>
-                Explore a disruption scenario <ArrowRight size={14} />
-              </button>
             </div>
           )}
           <div className="map-bottom">
@@ -564,7 +581,7 @@ export default function App() {
           All times UTC
         </span>
         <span>
-          Demonstration environment <span className="version">v1.0</span>
+          India-linked demonstration <span className="version">v2.0</span>
         </span>
       </footer>
     </div>

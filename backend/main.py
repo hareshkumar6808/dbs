@@ -319,7 +319,9 @@ def map_state(db: DB):
         "disruptions": disruptions.event_rows(db),
         "network": {
             "flights": len(fs),
-            "airborne": sum(f["flight_status"] == "EN_ROUTE" for f in fs),
+            "daily_operations": one(db, "SELECT count(*) AS n FROM flight")["n"],
+            "airborne": sum(f["flight_status"] in ("EN_ROUTE", "APPROACHING") for f in fs),
+            "ground": sum(bool(f["position"]) and f["flight_status"] not in ("EN_ROUTE", "APPROACHING") for f in fs),
             "high_risk": sum(f["risk"]["level"] == "HIGH" for f in fs),
             "affected": sum(bool(f["impacts"]) for f in fs),
         },

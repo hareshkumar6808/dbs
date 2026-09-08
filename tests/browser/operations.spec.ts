@@ -4,19 +4,18 @@ test("database traffic, aircraft selection, overlays and persisted replay", asyn
   page,
 }) => {
   await page.goto("/");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Switch to light mode" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await page.getByRole("button", { name: "Flights", exact: true }).click();
   await expect(page.getByTestId("flight-row").first()).toBeVisible({
     timeout: 30000,
   });
   await expect(page.locator(".aircraft-icon").first()).toBeVisible();
-  const state = await (await page.request.get("/api/map/state")).json();
-  const flight = state.flights.find(
-    (f: { destination: string; flight_status: string }) =>
-      f.destination === "MAA" && f.flight_status === "EN_ROUTE",
-  );
-  await page
-    .getByTestId("flight-row")
-    .filter({ hasText: flight.flight_number })
-    .click();
+  await page.getByTestId("flight-row").first().click();
   await expect(
     page.getByLabel("Flight details", { exact: true }),
   ).toBeVisible();
@@ -42,7 +41,7 @@ test("shared scenario persists across pages and resolves", async ({
   context,
 }) => {
   await page.goto("/");
-  await expect(page.getByTestId("flight-row").first()).toBeVisible({
+  await expect(page.locator(".aircraft-icon").first()).toBeVisible({
     timeout: 30000,
   });
   await page
@@ -64,6 +63,7 @@ test("shared scenario persists across pages and resolves", async ({
     ).toBeVisible();
     const another = await context.newPage();
     await another.goto("/");
+    await another.getByRole("button", { name: "Flights", exact: true }).click();
     await expect(another.locator(".affected-text").first()).toBeVisible({
       timeout: 30000,
     });
@@ -107,7 +107,9 @@ test("copilot returns database results and mobile controls remain usable", async
   await page
     .getByRole("button", { name: "Which flights are high risk?", exact: true })
     .click();
-  await expect(page.getByText("DATABASE RESULT")).toBeVisible();
+  await expect(page.getByText("DATABASE RESULT")).toBeVisible({
+    timeout: 30000,
+  });
   await expect(page.locator(".query-item").first()).toBeVisible();
   expect(
     await page

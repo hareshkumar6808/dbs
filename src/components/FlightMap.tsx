@@ -44,7 +44,7 @@ function Focus({
       map.flyTo(latlng(airport.location.coordinates), 7, { duration: 0.8 });
   }, [airport, map]);
   useEffect(() => {
-    if (reset) map.setView([20.6, 79.3], 5);
+    if (reset) map.setView([22, 75], 3);
   }, [reset, map]);
   return null;
 }
@@ -60,6 +60,7 @@ function AircraftMarker({
   replay?: Position;
 }) {
   const heading = replay?.heading ?? flight.heading ?? 0;
+  const airborne = ["EN_ROUTE", "APPROACHING"].includes(flight.flight_status);
   const color = selected
     ? "#ffffff"
     : flight.impacts.length
@@ -70,12 +71,14 @@ function AircraftMarker({
   const icon = useMemo(
     () =>
       L.divIcon({
-        className: `aircraft-icon ${selected ? "selected" : ""}`,
-        iconSize: [28, 28],
-        iconAnchor: [14, 14],
-        html: `<svg style="transform:rotate(${heading}deg)" viewBox="0 0 24 24" fill="${color}" stroke="#10202c" stroke-width="0.75"><path d="M11 2Q12 0 13 2L14 9 22 14 22 16 14 13 14 19 17 21 17 23 12 21 7 23 7 21 10 19 10 13 2 16 2 14 10 9Z"/></svg>`,
+        className: `aircraft-icon ${airborne ? "airborne" : "ground"} ${selected ? "selected" : ""}`,
+        iconSize: [22, 22],
+        iconAnchor: [11, 11],
+        html: airborne
+          ? `<svg style="transform:rotate(${heading}deg)" viewBox="0 0 24 24" fill="${color}" stroke="#10202c" stroke-width="0.75"><path d="M11 2Q12 0 13 2L14 9 22 14 22 16 14 13 14 19 17 21 17 23 12 21 7 23 7 21 10 19 10 13 2 16 2 14 10 9Z"/></svg>`
+          : `<span class="ground-marker" style="border-color:${color}"><i style="background:${color}"></i></span>`,
       }),
-    [heading, color, selected],
+    [heading, color, selected, airborne],
   );
   const position = replay?.position ?? flight.position;
   if (!position) return null;
@@ -85,14 +88,13 @@ function AircraftMarker({
       icon={icon}
       eventHandlers={{ click: () => onSelect(flight.flight_id) }}
       title={`Select ${flight.flight_number}`}
-      zIndexOffset={selected ? 1000 : flight.impacts.length ? 500 : 100}
+      zIndexOffset={selected ? 1000 : flight.impacts.length ? 500 : airborne ? 100 : 20}
     >
       <Tooltip direction="top" offset={[0, -15]} className="flight-tooltip">
         <strong>{flight.flight_number}</strong> {flight.origin} →{" "}
         {flight.destination}
         <br />
-        {flight.risk.level} RISK ·{" "}
-        {Math.round(flight.altitude_m ?? 0).toLocaleString()} m
+        {flight.flight_status.replaceAll("_", " ")} · {airborne ? `${Math.round(flight.altitude_m ?? 0).toLocaleString()} m` : flight.departure_gate || "GROUND"}
       </Tooltip>
     </Marker>
   );
@@ -108,6 +110,7 @@ export default function FlightMap({
   replay,
   airport,
   reset,
+  theme,
 }: {
   state: MapState;
   flights: Flight[];
@@ -119,26 +122,27 @@ export default function FlightMap({
   replay?: Position;
   airport?: Airport;
   reset: number;
+  theme: "dark" | "light";
 }) {
   return (
     <MapContainer
-      center={[20.6, 79.3]}
-      zoom={5}
-      minZoom={3}
+      center={[22, 75]}
+      zoom={3}
+      minZoom={2}
       maxZoom={13}
       zoomControl={false}
-      className="flight-map"
+      className={`flight-map theme-${theme}`}
     >
       <TileLayer
-        url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'
-        maxNativeZoom={19}
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+        attribution="Tiles &copy; Esri"
+        maxNativeZoom={16}
       />
       <ZoomControl position="bottomright" />
       <Focus flight={selected} airport={airport} reset={reset} />
       {layers.routes &&
         flights
-          .filter((f) => f.flight_status === "EN_ROUTE")
+          .filter((f) => ["EN_ROUTE", "APPROACHING"].includes(f.flight_status))
           .map((f) => (
             <Polyline
               key={f.flight_id}
@@ -214,7 +218,7 @@ export default function FlightMap({
             }}
           >
             <Tooltip
-              permanent
+              permanent={a.country === "India" && a.airport_id <= 12}
               direction="bottom"
               className="airport-label"
               offset={[0, 3]}
@@ -224,7 +228,7 @@ export default function FlightMap({
             <Popup>
               {a.iata_code} · {a.airport_name}
               <br />
-              {a.city} · Infrastructure: {a.operational_status}
+              {a.city}, {a.country} · Infrastructure: {a.operational_status}
             </Popup>
           </CircleMarker>
         ))}
@@ -260,8 +264,9 @@ export default function FlightMap({
       {flights
         .filter(
           (f) =>
-            f.flight_status === "EN_ROUTE" ||
-            f.flight_id === selected?.flight_id,
+            !!f.position &&
+            (["EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"].includes(f.flight_status) ||
+              f.flight_id === selected?.flight_id),
         )
         .map((f) => (
           <AircraftMarker

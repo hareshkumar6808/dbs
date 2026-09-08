@@ -72,6 +72,13 @@ def tick(db):
         return {"updated": 0, "mode": "demo"}
     now = datetime.fromtimestamp(int(datetime.now(timezone.utc).timestamp() // 10) * 10, timezone.utc)
     replenish(db, now)
+    # Keep the ground phase visible as the rolling timetable advances.
+    db.execute(
+        text("""UPDATE flight SET flight_status='BOARDING',last_updated=:now
+        WHERE flight_status='SCHEDULED'
+          AND scheduled_departure>:now AND scheduled_departure<=:now+interval '30 minutes'"""),
+        {"now": now},
+    )
     updated = db.execute(
         text("""WITH moving AS (
         SELECT f.flight_id,f.aircraft_id,r.route_geometry,
@@ -79,12 +86,13 @@ def tick(db):
             EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure)))) AS fraction,
           r.distance_km/EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure))*3600 AS speed
         FROM flight f JOIN route r USING(route_id)
-        WHERE f.scheduled_departure<=:now AND (f.scheduled_arrival>=:now OR f.flight_status='EN_ROUTE')
-          AND f.flight_status IN ('SCHEDULED','EN_ROUTE')
+        WHERE f.scheduled_departure<=:now AND f.scheduled_arrival>=:now
+          AND f.flight_status IN ('SCHEDULED','BOARDING','TAXIING','EN_ROUTE','APPROACHING')
     ), inserted AS (
         INSERT INTO flight_position(flight_id,position,ground_speed,heading,recorded_at)
-        SELECT flight_id,ST_SetSRID(ST_MakePoint(ST_X(p),ST_Y(p),10000*sin(pi()*fraction)),4326),
-          CASE WHEN fraction>=1 THEN 0 ELSE speed END,
+        SELECT flight_id,ST_SetSRID(ST_MakePoint(ST_X(p),ST_Y(p),
+          CASE WHEN fraction<=0.08 THEN 0 ELSE 10000*sin(pi()*fraction) END),4326),
+          CASE WHEN fraction<=0.08 THEN 35 WHEN fraction>=1 THEN 0 ELSE speed END,
           degrees(ST_Azimuth(ST_StartPoint(route_geometry),ST_EndPoint(route_geometry))),:now
         FROM moving,LATERAL(SELECT ST_LineInterpolatePoint(route_geometry,fraction) AS p) point
         ON CONFLICT(flight_id,recorded_at) DO NOTHING RETURNING *
@@ -94,10 +102,12 @@ def tick(db):
         {"now": now},
     ).rowcount
     db.execute(
-        text("""UPDATE flight SET flight_status=CASE WHEN scheduled_arrival<=:now THEN 'LANDED' ELSE 'EN_ROUTE' END,
+        text("""UPDATE flight SET flight_status=CASE WHEN scheduled_arrival<=:now THEN 'LANDED'
+        WHEN scheduled_departure>:now-interval '10 minutes' THEN 'TAXIING'
+        WHEN scheduled_arrival<=:now+interval '20 minutes' THEN 'APPROACHING' ELSE 'EN_ROUTE' END,
         actual_departure=COALESCE(actual_departure,scheduled_departure),
         actual_arrival=CASE WHEN scheduled_arrival<=:now THEN scheduled_arrival ELSE NULL END,last_updated=:now
-        WHERE scheduled_departure<=:now AND flight_status IN ('SCHEDULED','EN_ROUTE')"""),
+        WHERE scheduled_departure<=:now AND flight_status IN ('SCHEDULED','BOARDING','TAXIING','EN_ROUTE','APPROACHING')"""),
         {"now": now},
     )
     db.execute(

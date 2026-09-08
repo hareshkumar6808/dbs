@@ -4,14 +4,19 @@ export default defineConfig({
   timeout: 60000,
   workers: 1,
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:5173",
     browserName: "chromium",
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : undefined,
     screenshot: "only-on-failure",
   },
-  webServer: {
-    command: "npm run preview -- --port 5173 --configLoader native",
-    url: "http://127.0.0.1:5173",
-    reuseExistingServer: true,
-    timeout: 30000,
-  },
+  webServer: process.env.PLAYWRIGHT_BASE_URL
+    ? undefined
+    : {
+        command: "npm run preview -- --port 5173 --configLoader runner",
+        url: "http://127.0.0.1:5173",
+        reuseExistingServer: true,
+        timeout: 30000,
+      },
 });

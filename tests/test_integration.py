@@ -37,8 +37,8 @@ def client(db_engine):
 def test_seed_idempotent_and_indexes(db_engine):
     with Session(db_engine) as db:
         assert seed(db)["seeded"] is False
-        assert db.execute(text("SELECT count(*) FROM airport")).scalar() == 12
-        assert db.execute(text("SELECT count(*) FROM flight")).scalar() >= 128
+        assert db.execute(text("SELECT count(*) FROM airport")).scalar() >= 70
+        assert db.execute(text("SELECT count(*) FROM flight")).scalar() >= 3800
         assert (
             db.execute(
                 text("SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexdef LIKE '%USING gist%'")
@@ -52,7 +52,11 @@ def test_health_map_persistence_and_replay(client, db_engine):
     response = client.get("/api/map/state")
     assert response.status_code == 200, response.text
     state = response.json()
-    assert state["mode"] == "demo" and state["network"]["airborne"] >= 24
+    assert state["mode"] == "demo" and state["network"]["airborne"] >= 300
+    assert state["network"]["daily_operations"] >= 3800
+    assert state["network"]["ground"] >= 100
+    statuses = {flight["flight_status"] for flight in state["flights"]}
+    assert {"EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"} <= statuses
     flight = next(f for f in state["flights"] if f["flight_status"] == "EN_ROUTE")
     assert flight["position"]["type"] == "Point" and len(flight["position"]["coordinates"]) == 3
     assert flight["distance_remaining_km"] > 0

@@ -58,6 +58,7 @@ export type Airport = {
   icao_code: string;
   airport_name: string;
   city: string;
+  country: string;
   location: Point;
   operational_status: string;
 };
@@ -97,7 +98,9 @@ export type MapState = {
   disruptions: Disruption[];
   network: {
     flights: number;
+    daily_operations: number;
     airborne: number;
+    ground: number;
     high_risk: number;
     affected: number;
   };

@@ -46,8 +46,11 @@ FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.regis
     WHERE i.flight_id=f.flight_id AND i.resolution_status='OPEN' AND e.disruption_status='ACTIVE'
       AND now() BETWEEN e.start_time AND e.expected_end_time) imp ON true
   WHERE (:flight_id=0 OR f.flight_id=:flight_id)
-    AND (:flight_id<>0 OR f.scheduled_arrival>now()-interval '12 hours')
-  ORDER BY CASE f.flight_status WHEN 'EN_ROUTE' THEN 0 WHEN 'SCHEDULED' THEN 1 ELSE 2 END,f.scheduled_departure,f.flight_id
+    AND (:flight_id<>0 OR (f.scheduled_arrival>now()-interval '90 minutes'
+      AND f.scheduled_departure<now()+interval '6 hours'))
+  ORDER BY CASE f.flight_status WHEN 'EN_ROUTE' THEN 0 WHEN 'APPROACHING' THEN 1
+    WHEN 'TAXIING' THEN 2 WHEN 'BOARDING' THEN 3 WHEN 'DELAYED' THEN 4 WHEN 'SCHEDULED' THEN 5 ELSE 6 END,
+    f.scheduled_departure,f.flight_id
   LIMIT :limit OFFSET :offset"""
 
 
@@ -100,7 +103,7 @@ def risk(f):
     }
 
 
-def flights(db, flight_id=0, limit=500, offset=0):
+def flights(db, flight_id=0, limit=2000, offset=0):
     result = rows(db, FLIGHTS_SQL, flight_id=flight_id, limit=limit, offset=offset)
     for f in result:
         f["risk"] = risk(f)
