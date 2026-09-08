@@ -28,6 +28,8 @@ export default function DisruptionPanel({
   const [result, setResult] = useState<SimulationResult>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [resolvedIds, setResolvedIds] = useState<number[]>([]);
+  const activeScenarios = state.disruptions.filter((d) => d.is_active && !resolvedIds.includes(d.disruption_id));
   useEffect(() => {
     let alive = true;
     setRunways([]);
@@ -72,6 +74,7 @@ export default function DisruptionPanel({
     setError("");
     try {
       await api.resolve(id);
+      setResolvedIds((ids) => [...ids, id]);
       if (result?.disruption_id === id) {
         setResult(undefined);
         onAlternates([]);
@@ -261,11 +264,9 @@ export default function DisruptionPanel({
         <section className="detail-section">
           <h3>
             ACTIVE SCENARIOS{" "}
-            <span>{state.disruptions.filter((d) => d.is_active).length}</span>
+            <span>{activeScenarios.length}</span>
           </h3>
-          {state.disruptions
-            .filter((d) => d.is_active)
-            .map((d) => (
+          {activeScenarios.map((d) => (
               <div className="active-scenario" key={d.disruption_id}>
                 <div>
                   <strong>
@@ -291,7 +292,7 @@ export default function DisruptionPanel({
                 </button>
               </div>
             ))}
-          {!state.disruptions.some((d) => d.is_active) && (
+          {!activeScenarios.length && (
             <p className="muted">
               No active scenarios. The network is at its baseline.
             </p>

@@ -45,11 +45,14 @@ export default function FlightPanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview" | "intelligence">("overview");
+  const [photo, setPhoto] = useState({ url: "/aircraft-fallback.webp", source: "AeroPulse illustration", credit: null as string | null });
   useEffect(() => {
     setAlternates([]);
     setPaths([]);
     setError("");
-  }, [flight.flight_id]);
+    setPhoto({ url: "/aircraft-fallback.webp", source: "AeroPulse illustration", credit: null });
+    api.aircraftPhoto(flight.aircraft_id).then(setPhoto).catch(() => undefined);
+  }, [flight.flight_id, flight.aircraft_id]);
   async function load(kind: "alternates" | "history" | "cascade") {
     setBusy(kind);
     setError("");
@@ -137,6 +140,10 @@ export default function FlightPanel({
       <div className="panel-scroll">
         {tab === "overview" ? (
           <>
+            <figure className="aircraft-photo">
+              <img src={photo.url} alt={`${flight.manufacturer} ${flight.model}, ${flight.registration_number}`} onError={(event) => { event.currentTarget.src = "/aircraft-fallback.webp"; }} />
+              <figcaption><span>{flight.aircraft_category.replaceAll("_", " ")}</span><small>{photo.source}{photo.credit ? ` · ${photo.credit}` : ""}</small></figcaption>
+            </figure>
             <div className="telemetry">
               <div>
                 <span>ALTITUDE</span>
@@ -165,6 +172,12 @@ export default function FlightPanel({
                   {flight.manufacturer} {flight.model}
                 </dd>
               </dl>
+            </section>
+            <section className="detail-section path-status">
+              <h3>ROUTE PATHS</h3>
+              <div><i className="planned-line" /><span>Planned airway route</span><b>{flight.route_geometry.coordinates.length} waypoints</b></div>
+              <div><i className="actual-line" /><span>Persisted flown track</span><b>{flight.actual_geometry?.coordinates.length ?? 0} samples</b></div>
+              {flight.mitigation_type && <div><i className="avoidance-line" /><span>{flight.mitigation_type} avoidance</span><b>{flight.mitigation_reason}</b></div>}
             </section>
             <section className="detail-section">
               <h3>

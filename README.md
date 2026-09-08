@@ -4,6 +4,8 @@
 
 A shared, database-backed aviation operations demonstrator. React and Leaflet render the operational picture; PostgreSQL/PostGIS computes spatial relationships, persists movement history, and stores reversible disruptions. Neo4j optionally projects aircraft rotations for graph traversal.
 
+The map uses category-specific, heading-aware aircraft silhouettes and progressively aggregates traffic at low zoom. Selecting a flight shows registration imagery (with a bundled fallback), an eight-fix planned airway route, the persisted flown track, and any operational route generated around active weather or restricted airspace. Sidebar totals describe the currently filtered map data; the daily-operations label identifies the full network total.
+
 Traffic, weather, airspace and operational estimates are **synthetic demonstrations**, not live operational advice or navigation data. Airport coordinates and runway dimensions are approximate reference values, not a certified airport dataset.
 
 ## Run
@@ -22,7 +24,7 @@ python -m scripts.setup
 python -m uvicorn backend.main:app --port 8000
 ```
 
-In a second terminal, `npm run dev`. Vite proxies `/api` to the development API. Production uses same-origin `/api`; no production request depends on localhost. `python -m scripts.setup` runs Alembic migrations, idempotent demo seeding and optional graph synchronization. It never drops existing user data or replaces an existing seed.
+In a second terminal, `npm run dev`. Vite proxies `/api` to the development API. Production uses same-origin `/api`; no production request depends on localhost. `python -m scripts.setup` runs Alembic migrations, versioned deterministic demo seeding and optional graph synchronization. A demo-network version upgrade rebuilds synthetic fixtures while production live-provider data is left untouched.
 
 For restricted Windows environments where esbuild cannot inspect parent directories, use `npx vite build --configLoader native` or `npm run preview -- --port 5173 --configLoader native` with Node 24.
 

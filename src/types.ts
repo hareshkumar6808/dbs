@@ -23,6 +23,7 @@ export type Flight = {
   registration_number: string;
   manufacturer: string;
   model: string;
+  aircraft_category: string;
   origin: string;
   destination: string;
   origin_city: string;
@@ -31,6 +32,10 @@ export type Flight = {
   origin_airport_id: number;
   route_code: string;
   route_geometry: LineString;
+  operational_geometry: LineString;
+  actual_geometry: LineString | null;
+  mitigation_type: "WEATHER" | "AIRSPACE" | null;
+  mitigation_reason: string | null;
   position: Point | null;
   ground_speed: number | null;
   heading: number | null;
@@ -155,6 +160,7 @@ export type Layers = {
   airports: boolean;
   routes: boolean;
   disruptions: boolean;
+  clusters: boolean;
 };
 export type CopilotResult = {
   answer: string;

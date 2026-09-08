@@ -11,7 +11,7 @@ from backend.models import (
     FlightPosition, Route, Runway, WeatherEvent,
 )
 
-NETWORK_VERSION = 3
+NETWORK_VERSION = 4
 TARGET_FLIGHTS = 3800
 
 # iata, icao, name, city, country, lon, lat, elevation m, runway m, timezone
@@ -129,6 +129,40 @@ def _heading(a, b):
     return (degrees(atan2(y, x)) + 360) % 360
 
 
+def _waypoint_coordinates(a, b, route_id):
+    """Build deterministic terminal and en-route fix coordinates."""
+    lon1, lat1, lon2, lat2 = a[5], a[6], b[5], b[6]
+    span = max(abs(lon2 - lon1), abs(lat2 - lat1))
+    bend = min(1.15, max(0.12, span * 0.035)) * (1 if route_id % 2 else -1)
+    points = []
+    for i, fraction in enumerate((0, .06, .2, .42, .65, .84, .96, 1)):
+        lon = lon1 + (lon2 - lon1) * fraction
+        lat = lat1 + (lat2 - lat1) * fraction
+        if i not in (0, 7):
+            curve = sin(3.14159265 * fraction)
+            length = max(0.001, sqrt((lon2 - lon1) ** 2 + (lat2 - lat1) ** 2))
+            lon += -(lat2 - lat1) / length * bend * curve
+            lat += (lon2 - lon1) / length * bend * curve
+        points.append((lon, lat))
+    return points
+
+
+def _waypoint_geometry(a, b, route_id):
+    points = _waypoint_coordinates(a, b, route_id)
+    return "SRID=4326;LINESTRING(" + ",".join(f"{lon:.5f} {lat:.5f}" for lon, lat in points) + ")"
+
+
+def _interpolate(points, fraction):
+    lengths = [sqrt((b[0] - a[0]) ** 2 + (b[1] - a[1]) ** 2) for a, b in zip(points, points[1:])]
+    target, travelled = sum(lengths) * fraction, 0
+    for (a, b), length in zip(zip(points, points[1:]), lengths):
+        if travelled + length >= target:
+            local = 0 if not length else (target - travelled) / length
+            return a[0] + (b[0] - a[0]) * local, a[1] + (b[1] - a[1]) * local
+        travelled += length
+    return points[-1]
+
+
 def ensure_demo_network(db):
     """Upgrade an older demonstration database to the current deterministic network."""
     db.execute(text("SELECT pg_advisory_xact_lock(73001)"))
@@ -145,9 +179,10 @@ def ensure_demo_network(db):
           JOIN airport origin ON origin.airport_id=r.origin_airport_id
           JOIN airport destination ON destination.airport_id=r.destination_airport_id
           JOIN airline al ON al.airline_id=f.airline_id
-         WHERE origin.country='India' AND destination.country='India' AND al.country <> 'India') AS bad_domestic""")
+         WHERE origin.country='India' AND destination.country='India' AND al.country <> 'India') AS bad_domestic,
+        (SELECT count(*) FROM route WHERE ST_NPoints(route_geometry) < 5) AS simple_routes""")
     if (counts["airports"] >= 70 and counts["flights"] >= TARGET_FLIGHTS
-            and not counts["bad_longhaul"] and not counts["bad_domestic"]):
+            and not counts["bad_longhaul"] and not counts["bad_domestic"] and not counts["simple_routes"]):
         _sync_sequences(db)
         db.commit()
         return {"seeded": False, "version": NETWORK_VERSION, **counts}
@@ -208,7 +243,7 @@ def seed(db):
         km = _distance(a, b)
         route = Route(route_id=route_id, origin_airport_id=origin, destination_airport_id=dest, route_code=f"{a[0]}-{b[0]}",
                       distance_km=km, estimated_duration_minutes=max(40, round(km / (790 if km < 4000 else 870) * 60 + 25)),
-                      route_geometry=f"SRID=4326;LINESTRING({a[5]} {a[6]},{b[5]} {b[6]})", route_status="ACTIVE")
+                      route_geometry=_waypoint_geometry(a, b, route_id), route_status="ACTIVE")
         db.add(route)
         route_map[origin, dest] = route
     db.flush()
@@ -273,7 +308,8 @@ def seed(db):
                 for sample in range(samples):
                     position_id += 1
                     sample_fraction = max(0.0, fraction - (samples - 1 - sample) * 0.012)
-                    lon, lat = a[5] + (b[5] - a[5]) * sample_fraction, a[6] + (b[6] - a[6]) * sample_fraction
+                    # Seeded samples follow the waypoint route; live ticks later apply active hazard avoidance.
+                    lon, lat = _interpolate(_waypoint_coordinates(a, b, route.route_id), sample_fraction)
                     altitude = 0 if status in {"BOARDING", "DELAYED", "TAXIING", "LANDED", "SCHEDULED"} else round(11200 * sin(3.14159 * sample_fraction))
                     speed = 0 if altitude == 0 else (35 if status == "TAXIING" else AIRCRAFT_TYPES[type_id - 1][5])
                     recorded = now - timedelta(minutes=samples - 1 - sample)

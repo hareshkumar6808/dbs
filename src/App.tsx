@@ -44,6 +44,7 @@ export default function App() {
     airports: true,
     routes: false,
     disruptions: true,
+    clusters: true,
   });
   const [layersOpen, setLayersOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -103,6 +104,8 @@ export default function App() {
             (status === "GROUND"
               ? !["EN_ROUTE", "APPROACHING"].includes(f.flight_status) &&
                 !!f.position
+              : status === "AIRBORNE"
+                ? ["EN_ROUTE", "APPROACHING"].includes(f.flight_status)
               : f.flight_status === status)) &&
           (!riskFilter || f.risk.level === "HIGH") &&
           (!affected || f.impacts.length),
@@ -143,6 +146,15 @@ export default function App() {
     setAlternates([]);
   };
   const filtered = !!(search || airline || status || riskFilter || affected);
+  const mappedVisible = useMemo(() => visible.filter((f) => !!f.position && ["EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"].includes(f.flight_status)), [visible]);
+  const visibleMetrics = useMemo(() => ({
+    total: mappedVisible.length,
+    airborne: mappedVisible.filter((f) => ["EN_ROUTE", "APPROACHING"].includes(f.flight_status)).length,
+    ground: mappedVisible.filter((f) => !["EN_ROUTE", "APPROACHING"].includes(f.flight_status)).length,
+    highRisk: mappedVisible.filter((f) => f.risk.level === "HIGH").length,
+    delayed: mappedVisible.filter((f) => f.flight_status === "DELAYED" || f.estimated_delay_minutes > 0).length,
+    affected: mappedVisible.filter((f) => f.impacts.length > 0).length,
+  }), [mappedVisible]);
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -208,19 +220,23 @@ export default function App() {
             </button>
           </div>
           <div className="network-metrics">
+            <div className="metrics-scope">
+              <strong>{filtered ? "VISIBLE TRAFFIC" : "MAP TRAFFIC"}</strong>
+              <span>{state?.network.daily_operations.toLocaleString() ?? "—"} network-wide daily ops</span>
+            </div>
             <button onClick={clear}>
               <Radar size={16} />
-              <strong>{state?.network.daily_operations.toLocaleString() ?? "—"}</strong>
-              <span>Daily ops</span>
+              <strong>{visibleMetrics.total}</strong>
+              <span>Visible</span>
             </button>
             <button
               onClick={() => {
                 clear();
-                setStatus("EN_ROUTE");
+                setStatus("AIRBORNE");
               }}
             >
               <Plane size={16} />
-              <strong>{state?.network.airborne ?? "—"}</strong>
+              <strong>{visibleMetrics.airborne}</strong>
               <span>Airborne</span>
             </button>
             <button
@@ -231,8 +247,17 @@ export default function App() {
               className={status === "GROUND" ? "active" : ""}
             >
               <Activity size={16} />
-              <strong>{state?.network.ground ?? "—"}</strong>
+              <strong>{visibleMetrics.ground}</strong>
               <span>On ground</span>
+            </button>
+            <button onClick={() => { clear(); setRiskFilter(true); }}>
+              <strong>{visibleMetrics.highRisk}</strong><span>High risk</span>
+            </button>
+            <button onClick={() => { clear(); setStatus("DELAYED"); }}>
+              <strong>{visibleMetrics.delayed}</strong><span>Delayed</span>
+            </button>
+            <button onClick={() => { clear(); setAffected(true); }}>
+              <strong>{visibleMetrics.affected}</strong><span>Affected</span>
             </button>
           </div>
           <div className="search-wrap">
@@ -305,6 +330,7 @@ export default function App() {
               >
                 <option value="">All statuses</option>
                 <option value="EN_ROUTE">En route</option>
+                <option value="AIRBORNE">All airborne</option>
                 <option value="APPROACHING">Approaching</option>
                 <option value="TAXIING">Taxiing</option>
                 <option value="BOARDING">Boarding</option>
@@ -417,7 +443,7 @@ export default function App() {
           {state ? (
             <FlightMap
               state={state}
-              flights={visible}
+              flights={mappedVisible}
               selected={selected}
               onSelect={select}
               layers={layers}
@@ -522,6 +548,7 @@ export default function App() {
                 <i className="impacted" />
                 Affected
               </span>
+              {selected && <><span><i className="planned-line" />Planned</span><span><i className="actual-line" />Flown</span>{selected.mitigation_type && <span><i className="avoidance-line" />Avoidance</span>}</>}
             </div>
             <div className="data-note">
               {state?.mode === "live"

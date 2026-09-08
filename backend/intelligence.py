@@ -1,12 +1,16 @@
 """Set-based spatial features, explainable risk and schedule dependency traversal."""
 
 from backend.db import rows, one
+from backend.routing import OPERATIONAL_ROUTE_LATERAL
 
 # A single bounded query joins latest positions and aggregates independent factors.
 FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.registration_number,
   t.manufacturer,t.model,t.aircraft_category,r.route_code,r.origin_airport_id,r.destination_airport_id,
   o.iata_code AS origin,o.city AS origin_city,d.iata_code AS destination,d.city AS destination_city,
   ST_AsGeoJSON(r.route_geometry)::json AS route_geometry,
+  ST_AsGeoJSON(operational.geometry)::json AS operational_geometry,
+  hazard.kind AS mitigation_type,hazard.name AS mitigation_reason,
+  ST_AsGeoJSON(actual.geometry)::json AS actual_geometry,
   ST_AsGeoJSON(p.position)::json AS position,p.ground_speed,p.heading,p.recorded_at,
   ST_Z(p.position) AS altitude_m,
   ST_Distance(ST_Force2D(p.position)::geography,d.location::geography)/1000 AS distance_remaining_km,
@@ -28,7 +32,11 @@ FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.regis
   FROM flight f JOIN airline al USING(airline_id) JOIN aircraft a USING(aircraft_id)
   JOIN aircraft_type t USING(aircraft_type_id) JOIN route r USING(route_id)
   JOIN airport o ON o.airport_id=r.origin_airport_id JOIN airport d ON d.airport_id=r.destination_airport_id
+  """ + OPERATIONAL_ROUTE_LATERAL + """
   LEFT JOIN LATERAL(SELECT * FROM flight_position fp WHERE fp.flight_id=f.flight_id ORDER BY recorded_at DESC LIMIT 1) p ON true
+  LEFT JOIN LATERAL(SELECT CASE WHEN count(*) > 1 THEN ST_MakeLine(fp.position ORDER BY fp.recorded_at) END AS geometry
+    FROM (SELECT position,recorded_at FROM flight_position WHERE flight_id=f.flight_id
+      ORDER BY recorded_at DESC LIMIT 240) fp) actual ON true
   LEFT JOIN LATERAL(SELECT max(we.severity) AS severity,
     bool_or(ST_Contains(we.affected_area_geometry,ST_Force2D(p.position))) AS inside,
     bool_or(ST_DWithin(we.affected_area_geometry::geography,ST_Force2D(p.position)::geography,150000)
@@ -48,7 +56,8 @@ FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.regis
   WHERE (:flight_id=0 OR f.flight_id=:flight_id)
     AND (:flight_id<>0 OR (f.scheduled_arrival>now()-interval '90 minutes'
       AND f.scheduled_departure<now()+interval '6 hours'))
-  ORDER BY CASE f.flight_status WHEN 'EN_ROUTE' THEN 0 WHEN 'APPROACHING' THEN 1
+  ORDER BY (COALESCE(imp.delay,0)>0) DESC,
+    CASE f.flight_status WHEN 'EN_ROUTE' THEN 0 WHEN 'APPROACHING' THEN 1
     WHEN 'TAXIING' THEN 2 WHEN 'BOARDING' THEN 3 WHEN 'DELAYED' THEN 4 WHEN 'SCHEDULED' THEN 5 ELSE 6 END,
     f.scheduled_departure,f.flight_id
   LIMIT :limit OFFSET :offset"""

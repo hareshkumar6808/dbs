@@ -2,6 +2,8 @@ from datetime import datetime, timezone
 from typing import Annotated
 import hmac
 import logging
+from functools import lru_cache
+import httpx
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -109,6 +111,33 @@ def aircraft(db: DB, limit: int = Query(100, ge=1, le=500), offset: int = Query(
         limit=limit,
         offset=offset,
     )
+
+
+@lru_cache(maxsize=512)
+def _registration_photo(registration: str):
+    """Resolve optional registration imagery; the bundled image is the reliable fallback."""
+    try:
+        response = httpx.get(
+            f"https://api.planespotters.net/pub/photos/reg/{registration}",
+            timeout=3.0,
+            headers={"User-Agent": "AeroPulse/1.0"},
+        )
+        response.raise_for_status()
+        photo = (response.json().get("photos") or [])[0]
+        image = photo.get("thumbnail_large") or photo.get("thumbnail") or {}
+        if image.get("src"):
+            return {"url": image["src"], "source": "Planespotters.net", "credit": photo.get("photographer")}
+    except (httpx.HTTPError, ValueError, KeyError, IndexError):
+        pass
+    return {"url": "/aircraft-fallback.webp", "source": "AeroPulse illustration", "credit": None}
+
+
+@api.get("/aircraft/{aircraft_id}/photo")
+def aircraft_photo(aircraft_id: int, db: DB):
+    aircraft_row = one(db, "SELECT registration_number FROM aircraft WHERE aircraft_id=:id", id=aircraft_id)
+    if not aircraft_row:
+        raise HTTPException(404, "Aircraft not found")
+    return _registration_photo(aircraft_row["registration_number"])
 
 
 @api.get("/routes")

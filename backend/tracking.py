@@ -5,6 +5,7 @@ from sqlalchemy import text
 from backend.config import settings
 from backend.db import one, rows
 from backend.models import Flight, FlightLeg
+from backend.routing import OPERATIONAL_ROUTE_LATERAL
 
 
 def replenish(db, now):
@@ -87,11 +88,12 @@ def tick(db):
     )
     updated = db.execute(
         text("""WITH moving AS (
-        SELECT f.flight_id,f.aircraft_id,r.route_geometry,
+        SELECT f.flight_id,f.aircraft_id,operational.geometry AS route_geometry,
           LEAST(1.0,GREATEST(0.0,EXTRACT(EPOCH FROM (CAST(:now AS timestamptz)-f.scheduled_departure))/
             EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure)))) AS fraction,
           r.distance_km/EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure))*3600 AS speed
         FROM flight f JOIN route r USING(route_id)
+        """ + OPERATIONAL_ROUTE_LATERAL + """
         WHERE f.scheduled_departure<=:now AND f.scheduled_arrival>=:now
           AND f.flight_status IN ('SCHEDULED','BOARDING','TAXIING','EN_ROUTE','APPROACHING')
     ), inserted AS (
@@ -99,7 +101,9 @@ def tick(db):
         SELECT flight_id,ST_SetSRID(ST_MakePoint(ST_X(p),ST_Y(p),
           CASE WHEN fraction<=0.08 THEN 0 ELSE 10000*sin(pi()*fraction) END),4326),
           CASE WHEN fraction<=0.08 THEN 35 WHEN fraction>=1 THEN 0 ELSE speed END,
-          degrees(ST_Azimuth(ST_StartPoint(route_geometry),ST_EndPoint(route_geometry))),:now
+          degrees(ST_Azimuth(
+            ST_LineInterpolatePoint(route_geometry,GREATEST(0,fraction-.003)),
+            ST_LineInterpolatePoint(route_geometry,LEAST(1,fraction+.003)))),:now
         FROM moving,LATERAL(SELECT ST_LineInterpolatePoint(route_geometry,fraction) AS p) point
         ON CONFLICT(flight_id,recorded_at) DO NOTHING RETURNING *
     ) UPDATE aircraft a SET current_location=p.position,current_speed=p.ground_speed,heading=p.heading,last_updated=:now

@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 import os
 import pytest
 from backend.tracking import replenish
+from backend.seed import _waypoint_coordinates, _interpolate, AIRPORTS
 from backend.config import Settings
 
 
@@ -16,6 +17,16 @@ def test_missing_live_credentials_falls_back_to_honest_demo():
         Settings(_env_file=None, data_mode="live", opensky_client_id="x", opensky_client_secret="y").effective_mode
         == "live"
     )
+
+
+def test_planned_route_has_terminal_and_enroute_waypoints():
+    points = _waypoint_coordinates(AIRPORTS[0], AIRPORTS[2], 7)
+    assert len(points) == 8
+    assert points[0] == (AIRPORTS[0][5], AIRPORTS[0][6])
+    assert points[-1] == (AIRPORTS[2][5], AIRPORTS[2][6])
+    midpoint = _interpolate(points, 0.5)
+    direct_midpoint = ((points[0][0] + points[-1][0]) / 2, (points[0][1] + points[-1][1]) / 2)
+    assert midpoint != direct_midpoint
 
 
 @pytest.mark.integration

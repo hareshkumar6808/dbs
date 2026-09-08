@@ -239,15 +239,39 @@ button {
   border-radius: 3px;
   overflow: hidden;
 }
+.metrics-scope {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: #101920;
+}
+.metrics-scope strong {
+  font: 8px var(--mono);
+  letter-spacing: .8px;
+  color: #91aec2;
+}
+.metrics-scope span {
+  margin: 0;
+  font: 8px var(--mono);
+}
 .network-metrics button {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  padding: 13px 11px 10px;
+  padding: 9px 9px 8px;
   position: relative;
 }
 .network-metrics button + button {
   border-left: 1px solid var(--border);
+}
+.network-metrics button:nth-of-type(4) {
+  border-left: 0;
+}
+.network-metrics button:nth-of-type(n+4) {
+  border-top: 1px solid var(--border);
 }
 .network-metrics button svg {
   color: #769bb7;
@@ -261,7 +285,7 @@ button {
   color: #c68070;
 }
 .network-metrics strong {
-  font: 24px var(--mono);
+  font: 18px var(--mono);
   line-height: 1;
 }
 .network-metrics span {
@@ -637,6 +661,32 @@ button {
   filter: drop-shadow(0 2px 1px #0007);
   transition: transform 1s;
 }
+.aircraft-silhouette {
+  transform: rotate(var(--heading));
+  transform-origin: 50% 50%;
+  transition: transform 1.8s ease-in-out;
+}
+.traffic-cluster {
+  background: none;
+  border: 0;
+}
+.traffic-cluster span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid #83aecb;
+  outline: 6px solid #4c87ad29;
+  background: #173044e8;
+  color: #d7e9f4;
+  font: 10px var(--mono);
+  box-shadow: 0 3px 8px #0008;
+}
+.traffic-cluster span.affected {
+  border-color: #e58b72;
+  outline-color: #c45f4530;
+}
 .aircraft-icon.selected {
   border: 1px solid #bcd7eb80;
   border-radius: 50%;
@@ -724,6 +774,21 @@ button {
   display: inline-block;
   border-radius: 50%;
 }
+.map-legend .planned-line,
+.map-legend .actual-line,
+.map-legend .avoidance-line,
+.path-status i {
+  width: 19px;
+  height: 0;
+  border-radius: 0;
+  border-top: 2px solid #e5edf3;
+}
+.map-legend .planned-line,
+.path-status .planned-line { border-top-style: dashed; }
+.map-legend .actual-line,
+.path-status .actual-line { border-color: #48a9e6; }
+.map-legend .avoidance-line,
+.path-status .avoidance-line { border-color: #efaa57; }
 .nominal {
   background: #86b5d9;
 }
@@ -994,6 +1059,52 @@ button {
   min-height: 0;
   overflow: auto;
   padding: 0 19px 18px;
+}
+.aircraft-photo {
+  position: relative;
+  margin: 15px 0 2px;
+  height: 142px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: #101820;
+}
+.aircraft-photo img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+.aircraft-photo figcaption {
+  position: absolute;
+  inset: auto 0 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  padding: 18px 9px 7px;
+  background: linear-gradient(transparent, #071019db);
+  color: #e4edf3;
+  font: 8px var(--mono);
+  letter-spacing: .5px;
+}
+.aircraft-photo figcaption small { color: #a9bbc7; font-size: 7px; }
+.path-status > div {
+  display: grid;
+  grid-template-columns: 24px 1fr auto;
+  gap: 7px;
+  align-items: center;
+  margin-top: 10px;
+  color: #8da2b1;
+  font-size: 9px;
+}
+.path-status b {
+  max-width: 125px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #c3d4df;
+  font-weight: 500;
+  text-align: right;
 }
 .telemetry {
   display: grid;
@@ -1876,6 +1987,9 @@ button {
 [data-theme="light"] .network-metrics button:hover,
 [data-theme="light"] .network-metrics .active {
   background: #edf3f6;
+}
+[data-theme="light"] .metrics-scope {
+  background: #f4f7f9;
 }
 [data-theme="light"] .flight-row.selected {
   background: #e3eef5;
