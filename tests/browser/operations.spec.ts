@@ -14,12 +14,14 @@ test("database traffic, aircraft selection, overlays and persisted replay", asyn
   await expect(page.getByTestId("flight-row").first()).toBeVisible({
     timeout: 30000,
   });
-  await expect(page.locator(".aircraft-icon, .traffic-cluster").first()).toBeVisible();
+  await expect(page.locator(".aircraft-icon").first()).toBeVisible();
+  await expect(page.locator(".traffic-cluster")).toHaveCount(0);
   await page.getByTestId("flight-row").first().click();
   await expect(
     page.getByLabel("Flight details", { exact: true }),
   ).toBeVisible();
   await expect(page.locator(".aircraft-photo img")).toBeVisible();
+  await expect(page.locator(".aircraft-photo").getByText("Wikimedia Commons")).toBeVisible();
   await expect(page.getByText("Planned airway route")).toBeVisible();
   await expect(page.getByText("Persisted flown track")).toBeVisible();
   await page.getByRole("button", { name: "Replay recorded positions" }).click();
@@ -44,7 +46,7 @@ test("shared scenario persists across pages and resolves", async ({
   context,
 }) => {
   await page.goto("/");
-  await expect(page.locator(".aircraft-icon, .traffic-cluster").first()).toBeVisible({
+  await expect(page.locator(".aircraft-icon").first()).toBeVisible({
     timeout: 30000,
   });
   await page
@@ -92,7 +94,7 @@ test("copilot returns database results and mobile controls remain usable", async
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
-  await expect(page.locator(".aircraft-icon, .traffic-cluster").first()).toBeVisible({
+  await expect(page.locator(".aircraft-icon").first()).toBeVisible({
     timeout: 30000,
   });
   await page.getByRole("button", { name: "Flights", exact: true }).click();

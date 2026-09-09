@@ -11,7 +11,7 @@ from backend.models import (
     FlightPosition, Route, Runway, WeatherEvent,
 )
 
-NETWORK_VERSION = 4
+NETWORK_VERSION = 5
 TARGET_FLIGHTS = 3800
 
 # iata, icao, name, city, country, lon, lat, elevation m, runway m, timezone
@@ -180,9 +180,21 @@ def ensure_demo_network(db):
           JOIN airport destination ON destination.airport_id=r.destination_airport_id
           JOIN airline al ON al.airline_id=f.airline_id
          WHERE origin.country='India' AND destination.country='India' AND al.country <> 'India') AS bad_domestic,
-        (SELECT count(*) FROM route WHERE ST_NPoints(route_geometry) < 5) AS simple_routes""")
+        (SELECT count(*) FROM route WHERE ST_NPoints(route_geometry) < 5) AS simple_routes,
+        (SELECT count(*) FROM flight f JOIN route r USING(route_id)
+          JOIN airport o ON o.airport_id=r.origin_airport_id JOIN airport d ON d.airport_id=r.destination_airport_id
+         WHERE o.country='India' AND d.country<>'India' AND f.scheduled_arrival>now()-interval '90 minutes'
+           AND f.scheduled_departure<now()+interval '6 hours') AS outbound_international,
+        (SELECT count(*) FROM flight f JOIN route r USING(route_id)
+          JOIN airport o ON o.airport_id=r.origin_airport_id JOIN airport d ON d.airport_id=r.destination_airport_id
+         WHERE o.country<>'India' AND d.country='India' AND f.scheduled_arrival>now()-interval '90 minutes'
+           AND f.scheduled_departure<now()+interval '6 hours') AS inbound_international,
+        (SELECT count(DISTINCT flight_status) FROM flight
+          WHERE flight_status IN ('EN_ROUTE','APPROACHING','TAXIING','BOARDING','DELAYED','LANDED','SCHEDULED','DIVERTED','CANCELLED')) AS scenario_states""")
     if (counts["airports"] >= 70 and counts["flights"] >= TARGET_FLIGHTS
-            and not counts["bad_longhaul"] and not counts["bad_domestic"] and not counts["simple_routes"]):
+            and not counts["bad_longhaul"] and not counts["bad_domestic"] and not counts["simple_routes"]
+            and counts["outbound_international"] >= 20 and counts["inbound_international"] >= 20
+            and counts["scenario_states"] == 9):
         _sync_sequences(db)
         db.commit()
         return {"seeded": False, "version": NETWORK_VERSION, **counts}
@@ -234,7 +246,10 @@ def seed(db):
         else:
             hub = hubs[idx % len(hubs)]
             foreign = [international[(idx + leg * 9) % len(international)] for leg in range(3)]
-            sequence = [foreign[0], hub, foreign[1], hub, foreign[2], hub]
+            # Alternate the first active leg so the live window always contains
+            # both India departures and India arrivals, plus hub connections.
+            sequence = ([hub, foreign[0], hub, foreign[1], hub, foreign[2]]
+                        if (idx // 5) % 2 else [foreign[0], hub, foreign[1], hub, foreign[2], hub])
         planned.append(sequence)
     pairs = {(seq[i], seq[i + 1]) for seq in planned for i in range(5)}
     route_map = {}
@@ -247,7 +262,8 @@ def seed(db):
         db.add(route)
         route_map[origin, dest] = route
     db.flush()
-    statuses = ["EN_ROUTE"] * 4 + ["APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"]
+    statuses = ["EN_ROUTE"] * 4 + ["APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED",
+                "DIVERTED", "CANCELLED"]
     domestic_airlines = [1, 1, 1, 1, 2, 2, 2, 3, 3, 4, 5, 6]
     international_airlines = [1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]
     wide_body_types = [5, 6, 7, 10]
@@ -257,7 +273,7 @@ def seed(db):
         airline_pool = international_airlines if international_rotation else domestic_airlines
         airline_id = airline_pool[(idx - 1) % len(airline_pool)]
         type_id = wide_body_types[idx % len(wide_body_types)] if international_rotation else (
-            8 if idx % 13 == 0 else 1 + idx % 4
+            9 if idx % 17 == 0 else 8 if idx % 13 == 0 else 1 + idx % 4
         )
         prefix = AIRLINES[airline_id - 1][0]
         registration = ("VT-" if airline_id <= 6 else f"{prefix}-") + f"{idx:03d}"
@@ -281,6 +297,10 @@ def seed(db):
             fraction, departure = 0.0, now - timedelta(minutes=20 + idx % 25)
         elif status == "LANDED":
             fraction, departure = 1.0, now - timedelta(minutes=duration + 5 + idx % 20)
+        elif status == "DIVERTED":
+            fraction, departure = 0.68, now - timedelta(minutes=round(duration * 0.68))
+        elif status == "CANCELLED":
+            fraction, departure = 0.0, now + timedelta(minutes=25 + idx % 20)
         else:
             fraction, departure = 0.0, now + timedelta(minutes=50 + idx % 40)
         for leg in range(5):
@@ -290,7 +310,7 @@ def seed(db):
             route = route_map[origin, dest]
             arrival = departure + timedelta(minutes=route.estimated_duration_minutes)
             leg_status = status if leg == 0 else "SCHEDULED"
-            actual_departure = departure if leg == 0 and status in {"EN_ROUTE", "APPROACHING", "TAXIING", "LANDED"} else None
+            actual_departure = departure if leg == 0 and status in {"EN_ROUTE", "APPROACHING", "TAXIING", "LANDED", "DIVERTED"} else None
             actual_arrival = arrival if leg == 0 and status == "LANDED" else None
             flight = Flight(flight_id=flight_id, flight_number=f"{prefix}{100 + idx}{leg + 1}", airline_id=airline_id,
                             aircraft_id=idx, route_id=route.route_id, scheduled_departure=departure,
@@ -304,13 +324,13 @@ def seed(db):
             if leg == 0:
                 a, b = AIRPORTS[origin - 1], AIRPORTS[dest - 1]
                 heading = _heading(a, b)
-                samples = 4 if status in {"EN_ROUTE", "APPROACHING"} else 1
+                samples = 4 if status in {"EN_ROUTE", "APPROACHING", "DIVERTED"} else 1
                 for sample in range(samples):
                     position_id += 1
                     sample_fraction = max(0.0, fraction - (samples - 1 - sample) * 0.012)
                     # Seeded samples follow the waypoint route; live ticks later apply active hazard avoidance.
                     lon, lat = _interpolate(_waypoint_coordinates(a, b, route.route_id), sample_fraction)
-                    altitude = 0 if status in {"BOARDING", "DELAYED", "TAXIING", "LANDED", "SCHEDULED"} else round(11200 * sin(3.14159 * sample_fraction))
+                    altitude = 0 if status in {"BOARDING", "DELAYED", "TAXIING", "LANDED", "SCHEDULED", "CANCELLED"} else round(11200 * sin(3.14159 * sample_fraction))
                     speed = 0 if altitude == 0 else (35 if status == "TAXIING" else AIRCRAFT_TYPES[type_id - 1][5])
                     recorded = now - timedelta(minutes=samples - 1 - sample)
                     db.add(FlightPosition(position_id=position_id, flight_id=flight_id,

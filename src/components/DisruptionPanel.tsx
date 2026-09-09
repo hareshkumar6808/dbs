@@ -8,12 +8,14 @@ export default function DisruptionPanel({
   onChange,
   onAlternates,
   onSelect,
+  onFocus,
 }: {
   state: MapState;
   onClose: () => void;
   onChange: () => Promise<void>;
   onAlternates: (a: Alternate[]) => void;
   onSelect: (id: number) => void;
+  onFocus: (ids: number[]) => void;
 }) {
   const [airport, setAirport] = useState(
     state.airports.find((a) => a.iata_code === "MAA")?.airport_id ??
@@ -62,6 +64,7 @@ export default function DisruptionPanel({
       });
       setResult(r);
       onAlternates(r.alternates);
+      onFocus([...r.direct_flights.map((f) => f.flight_id), ...r.downstream_flights.map((f) => f.flight_id)]);
       await onChange();
     } catch (e) {
       setError((e as Error).message);
@@ -78,6 +81,7 @@ export default function DisruptionPanel({
       if (result?.disruption_id === id) {
         setResult(undefined);
         onAlternates([]);
+        onFocus([]);
       }
       await onChange();
     } catch (e) {

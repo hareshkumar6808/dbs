@@ -91,16 +91,26 @@ def tick(db):
         SELECT f.flight_id,f.aircraft_id,operational.geometry AS route_geometry,
           LEAST(1.0,GREATEST(0.0,EXTRACT(EPOCH FROM (CAST(:now AS timestamptz)-f.scheduled_departure))/
             EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure)))) AS fraction,
-          r.distance_km/EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure))*3600 AS speed
+          r.distance_km/EXTRACT(EPOCH FROM (f.scheduled_arrival-f.scheduled_departure))*3600 AS speed,
+          t.cruise_speed_kmh
         FROM flight f JOIN route r USING(route_id)
+        JOIN aircraft a USING(aircraft_id) JOIN aircraft_type t USING(aircraft_type_id)
         """ + OPERATIONAL_ROUTE_LATERAL + """
         WHERE f.scheduled_departure<=:now AND f.scheduled_arrival>=:now
           AND f.flight_status IN ('SCHEDULED','BOARDING','TAXIING','EN_ROUTE','APPROACHING')
     ), inserted AS (
         INSERT INTO flight_position(flight_id,position,ground_speed,heading,recorded_at)
         SELECT flight_id,ST_SetSRID(ST_MakePoint(ST_X(p),ST_Y(p),
-          CASE WHEN fraction<=0.08 THEN 0 ELSE 10000*sin(pi()*fraction) END),4326),
-          CASE WHEN fraction<=0.08 THEN 35 WHEN fraction>=1 THEN 0 ELSE speed END,
+          CASE WHEN fraction<=0.04 THEN 0
+               WHEN fraction<0.24 THEN 11200*((fraction-.04)/.20)
+               WHEN fraction<=0.74 THEN 11200 + 260*sin(fraction*14*pi())
+               WHEN fraction<.97 THEN 11200*((.97-fraction)/.23)
+               ELSE 0 END),4326),
+          CASE WHEN fraction<=0.04 THEN 24 + 8*sin(fraction*80)
+               WHEN fraction<0.16 THEN 250 + cruise_speed_kmh*((fraction-.04)/.12)*.72
+               WHEN fraction<=0.78 THEN LEAST(cruise_speed_kmh,speed)*(1 + .025*sin(fraction*18*pi()))
+               WHEN fraction<.97 THEN 220 + LEAST(cruise_speed_kmh,speed)*((.97-fraction)/.19)*.55
+               ELSE 32 END,
           degrees(ST_Azimuth(
             ST_LineInterpolatePoint(route_geometry,GREATEST(0,fraction-.003)),
             ST_LineInterpolatePoint(route_geometry,LEAST(1,fraction+.003)))),:now

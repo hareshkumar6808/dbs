@@ -2,8 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 import hmac
 import logging
-from functools import lru_cache
-import httpx
+from urllib.parse import quote
 from fastapi import FastAPI, APIRouter, Depends, HTTPException, Query, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -113,31 +112,44 @@ def aircraft(db: DB, limit: int = Query(100, ge=1, le=500), offset: int = Query(
     )
 
 
-@lru_cache(maxsize=512)
-def _registration_photo(registration: str):
-    """Resolve optional registration imagery; the bundled image is the reliable fallback."""
-    try:
-        response = httpx.get(
-            f"https://api.planespotters.net/pub/photos/reg/{registration}",
-            timeout=3.0,
-            headers={"User-Agent": "AeroPulse/1.0"},
-        )
-        response.raise_for_status()
-        photo = (response.json().get("photos") or [])[0]
-        image = photo.get("thumbnail_large") or photo.get("thumbnail") or {}
-        if image.get("src"):
-            return {"url": image["src"], "source": "Planespotters.net", "credit": photo.get("photographer")}
-    except (httpx.HTTPError, ValueError, KeyError, IndexError):
-        pass
-    return {"url": "/aircraft-fallback.webp", "source": "AeroPulse illustration", "credit": None}
+AIRCRAFT_MODEL_PHOTOS = {
+    ("Airbus", "A320neo"): ("Air New Zealand A320neo.jpg", "Cammynz", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
+    ("Airbus", "A321neo"): ("Airbus A321neo (35121126000).jpg", "Clemens Vasters", "CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/"),
+    ("Boeing", "737 MAX 8"): ("N8878L Boeing 737 MAX 8 s n 67914 (54411151099).jpg", "Tomás Del Coro", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
+    ("Boeing", "737-800"): ("B737-800.jpg", "João Pedro Wanzeller", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
+    ("Airbus", "A350-900"): ("Airbus A350-900 (27893058818).jpg", "Lutz Blohm", "CC BY-SA 2.0", "https://creativecommons.org/licenses/by-sa/2.0/"),
+    ("Boeing", "787-9 Dreamliner"): ("First flight of Boeing 787-9.jpg", "Gordon Werner", "CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/"),
+    ("Boeing", "777-300ER"): ("Boeing 777-300ER Singapore Airlines.JPG", "Gab01", "CC BY-SA 3.0", "https://creativecommons.org/licenses/by-sa/3.0/"),
+    ("ATR", "72-600"): ("An ATR 72-600.jpg", "9k32Strela", "CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
+    ("Embraer", "ERJ-145"): ("Embraer ERJ-145LR ‘N677AE’ American Eagle.jpg", "Alan Wilson", "CC BY-SA 2.0", "https://creativecommons.org/licenses/by-sa/2.0/"),
+    ("Airbus", "A330-300"): ("Airbus A330-300.jpg", "Murad Hashan", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
+}
+
+
+def _model_photo(manufacturer: str, model: str):
+    photo = AIRCRAFT_MODEL_PHOTOS.get((manufacturer, model))
+    if not photo:
+        return {"url": "/aircraft-fallback.webp", "source": "AeroPulse illustration", "credit": None,
+                "source_url": None, "license": None, "license_url": None}
+    filename, credit, license_name, license_url = photo
+    source_url = f"https://commons.wikimedia.org/wiki/File:{quote(filename)}"
+    return {
+        "url": f"https://commons.wikimedia.org/wiki/Special:Redirect/file/{quote(filename)}?width=1200",
+        "source": "Wikimedia Commons",
+        "source_url": source_url,
+        "credit": credit,
+        "license": license_name,
+        "license_url": license_url,
+    }
 
 
 @api.get("/aircraft/{aircraft_id}/photo")
 def aircraft_photo(aircraft_id: int, db: DB):
-    aircraft_row = one(db, "SELECT registration_number FROM aircraft WHERE aircraft_id=:id", id=aircraft_id)
+    aircraft_row = one(db, """SELECT a.registration_number,t.manufacturer,t.model FROM aircraft a
+        JOIN aircraft_type t USING(aircraft_type_id) WHERE a.aircraft_id=:id""", id=aircraft_id)
     if not aircraft_row:
         raise HTTPException(404, "Aircraft not found")
-    return _registration_photo(aircraft_row["registration_number"])
+    return _model_photo(aircraft_row["manufacturer"], aircraft_row["model"])
 
 
 @api.get("/routes")
@@ -331,10 +343,33 @@ def ask(request: CopilotQuestion, db: DB):
     return copilot.query(db, request.question)
 
 
+def _scenario_examples(fs):
+    definitions = [
+        ("weather", "Weather avoidance", lambda f: f["mitigation_type"] == "WEATHER"),
+        ("airspace", "Restricted airspace avoidance", lambda f: f["mitigation_type"] == "AIRSPACE"),
+        ("high-risk", "High operational risk", lambda f: f["risk"]["level"] == "HIGH"),
+    ] + [(status.lower(), status.replace("_", " ").title(), lambda f, value=status: f["flight_status"] == value)
+         for status in ("EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED", "DIVERTED", "CANCELLED")]
+    return [{"key": key, "label": label, "flight_ids": [match["flight_id"]]}
+            for key, label, predicate in definitions if (match := next((f for f in fs if predicate(f)), None))]
+
+
 @api.get("/map/state")
-def map_state(db: DB):
+def map_state(
+    db: DB,
+    west: float | None = Query(None, ge=-180, le=180),
+    south: float | None = Query(None, ge=-90, le=90),
+    east: float | None = Query(None, ge=-180, le=180),
+    north: float | None = Query(None, ge=-90, le=90),
+):
     tracking.tick(db)
-    fs = intelligence.flights(db)
+    coordinates = (west, south, east, north)
+    if any(value is not None for value in coordinates) and not all(value is not None for value in coordinates):
+        raise HTTPException(422, "west, south, east and north must be supplied together")
+    if all(value is not None for value in coordinates) and (west >= east or south >= north):
+        raise HTTPException(422, "Viewport bounds must increase from west to east and south to north")
+    bbox = coordinates if all(value is not None for value in coordinates) else None
+    fs = intelligence.flights(db, bbox=bbox)
     return {
         "mode": settings().effective_mode,
         "source": "Synthetic persisted demonstration"
@@ -346,6 +381,8 @@ def map_state(db: DB):
         "weather": weather(db),
         "airspace": airspace(db),
         "disruptions": disruptions.event_rows(db),
+        "scenario_examples": _scenario_examples(fs),
+        "viewport_filtered": bool(bbox),
         "network": {
             "flights": len(fs),
             "daily_operations": one(db, "SELECT count(*) AS n FROM flight")["n"],

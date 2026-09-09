@@ -44,7 +44,6 @@ export default function App() {
     airports: true,
     routes: false,
     disruptions: true,
-    clusters: true,
   });
   const [layersOpen, setLayersOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -55,6 +54,7 @@ export default function App() {
   const [airport, setAirport] = useState<Airport>();
   const [reset, setReset] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [scenarioFlightIds, setScenarioFlightIds] = useState<number[]>([]);
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     localStorage.setItem("aeropulse-theme", theme);
@@ -146,7 +146,7 @@ export default function App() {
     setAlternates([]);
   };
   const filtered = !!(search || airline || status || riskFilter || affected);
-  const mappedVisible = useMemo(() => visible.filter((f) => !!f.position && ["EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"].includes(f.flight_status)), [visible]);
+  const mappedVisible = useMemo(() => visible.filter((f) => !!f.position), [visible]);
   const visibleMetrics = useMemo(() => ({
     total: mappedVisible.length,
     airborne: mappedVisible.filter((f) => ["EN_ROUTE", "APPROACHING"].includes(f.flight_status)).length,
@@ -453,6 +453,7 @@ export default function App() {
               airport={airport}
               reset={reset}
               theme={theme}
+              scenarioFlightIds={scenarioFlightIds}
             />
           ) : (
             <div className="map-placeholder">
@@ -526,6 +527,17 @@ export default function App() {
                   </span>
                 </label>
               ))}
+              <details className="scenario-examples">
+                <summary>Scenario examples</summary>
+                {(state?.scenario_examples ?? []).map((scenario) => (
+                  <button key={scenario.key} onClick={() => {
+                    setScenarioFlightIds(scenario.flight_ids);
+                    setLayersOpen(false);
+                    if (scenario.key === "weather") setLayers((value) => ({ ...value, weather: true }));
+                    if (scenario.key === "airspace") setLayers((value) => ({ ...value, airspace: true }));
+                  }}>{scenario.label}</button>
+                ))}
+              </details>
             </div>
           )}
           {error && state && (
@@ -586,6 +598,7 @@ export default function App() {
             onChange={refresh}
             onAlternates={setAlternates}
             onSelect={select}
+            onFocus={setScenarioFlightIds}
           />
         )}
         {tool === "copilot" && (

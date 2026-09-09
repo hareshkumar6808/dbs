@@ -36,6 +36,14 @@ export type Flight = {
   actual_geometry: LineString | null;
   mitigation_type: "WEATHER" | "AIRSPACE" | null;
   mitigation_reason: string | null;
+  planned_distance_km: number;
+  operational_distance_km: number;
+  added_distance_km: number;
+  added_time_minutes: number;
+  estimated_extra_fuel_kg: number;
+  changed_waypoints: number;
+  operational_decision: string;
+  movement_phase: string;
   position: Point | null;
   ground_speed: number | null;
   heading: number | null;
@@ -101,6 +109,8 @@ export type MapState = {
   weather: Weather[];
   airspace: Airspace[];
   disruptions: Disruption[];
+  scenario_examples: { key: string; label: string; flight_ids: number[] }[];
+  viewport_filtered: boolean;
   network: {
     flights: number;
     daily_operations: number;
@@ -160,7 +170,6 @@ export type Layers = {
   airports: boolean;
   routes: boolean;
   disruptions: boolean;
-  clusters: boolean;
 };
 export type CopilotResult = {
   answer: string;

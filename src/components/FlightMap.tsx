@@ -6,11 +6,16 @@ import type { Airport, Flight, Layers, MapState, Alternate, Position } from "../
 const latlng = (p: number[]): [number, number] => [p[1], p[0]];
 const isAirborne = (status: string) => ["EN_ROUTE", "APPROACHING"].includes(status);
 
-function Focus({ flight, airport, reset }: { flight?: Flight; airport?: Airport; reset: number }) {
+function Focus({ flight, airport, reset, scenarioFlights }: { flight?: Flight; airport?: Airport; reset: number; scenarioFlights: Flight[] }) {
   const map = useMap();
   useEffect(() => { if (flight) map.fitBounds(flight.operational_geometry.coordinates.map(latlng), { padding: [75, 75], maxZoom: 7, animate: true }); }, [flight?.flight_id, map]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (airport) map.flyTo(latlng(airport.location.coordinates), 7, { duration: .8 }); }, [airport, map]);
   useEffect(() => { if (reset) map.setView([22, 75], 3); }, [reset, map]);
+  useEffect(() => {
+    if (!scenarioFlights.length) return;
+    const points = scenarioFlights.flatMap((item) => item.operational_geometry.coordinates.map(latlng));
+    if (points.length) map.fitBounds(points, { padding: [90, 90], maxZoom: 6, animate: true });
+  }, [scenarioFlights, map]);
   return null;
 }
 
@@ -37,34 +42,22 @@ function AircraftMarker({ flight, selected, onSelect, replay }: { flight: Flight
   </Marker>;
 }
 
-function Traffic({ flights, selected, onSelect, replay, clusters }: { flights: Flight[]; selected?: Flight; onSelect: (id: number) => void; replay?: Position; clusters: boolean }) {
-  const map = useMapEvents({ zoomend: () => setZoom(map.getZoom()) });
-  const [zoom, setZoom] = useState(map.getZoom());
-  const positioned = flights.filter((f) => !!f.position);
-  if (!clusters || zoom >= 6) return <>{positioned.map((f) => <AircraftMarker key={f.flight_id} flight={f} selected={f.flight_id === selected?.flight_id} onSelect={onSelect} replay={f.flight_id === selected?.flight_id ? replay : undefined} />)}</>;
-  const size = zoom <= 3 ? 7 : zoom === 4 ? 3.5 : 1.7;
-  const cells = new Map<string, Flight[]>();
-  for (const f of positioned) {
-    if (f.flight_id === selected?.flight_id) continue;
-    const [lon, lat] = f.position!.coordinates;
-    const key = `${Math.floor(lon / size)}:${Math.floor(lat / size)}`;
-    cells.set(key, [...(cells.get(key) ?? []), f]);
-  }
-  return <>
-    {selected && <AircraftMarker flight={selected} selected onSelect={onSelect} replay={replay} />}
-    {[...cells.entries()].map(([key, group]) => {
-      if (group.length === 1) return <AircraftMarker key={key} flight={group[0]} selected={false} onSelect={onSelect} />;
-      const center: [number, number] = [group.reduce((n, f) => n + f.position!.coordinates[1], 0) / group.length, group.reduce((n, f) => n + f.position!.coordinates[0], 0) / group.length];
-      const icon = L.divIcon({ className: "traffic-cluster", iconSize: [36, 36], iconAnchor: [18, 18], html: `<span class="${group.some((f) => f.impacts.length) ? "affected" : ""}">${group.length}</span>` });
-      return <Marker key={key} position={center} icon={icon} eventHandlers={{ click: () => map.flyTo(center, Math.min(8, zoom + 2), { duration: .7 }) }}><Tooltip>{group.length} aircraft · click to expand</Tooltip></Marker>;
-    })}
-  </>;
+function Traffic({ flights, selected, onSelect, replay }: { flights: Flight[]; selected?: Flight; onSelect: (id: number) => void; replay?: Position }) {
+  const map = useMapEvents({ moveend: () => setBounds(map.getBounds().pad(.18)) });
+  const [bounds, setBounds] = useState(() => map.getBounds().pad(.18));
+  const positioned = useMemo(() => flights.filter((f) => {
+    if (!f.position) return false;
+    if (f.flight_id === selected?.flight_id) return true;
+    return bounds.contains(latlng(f.position.coordinates));
+  }), [flights, bounds, selected?.flight_id]);
+  return <>{positioned.map((f) => <AircraftMarker key={f.flight_id} flight={f} selected={f.flight_id === selected?.flight_id} onSelect={onSelect} replay={f.flight_id === selected?.flight_id ? replay : undefined} />)}</>;
 }
 
-export default function FlightMap({ state, flights, selected, onSelect, layers, alternates, history, replay, airport, reset, theme }: { state: MapState; flights: Flight[]; selected?: Flight; onSelect: (id: number) => void; layers: Layers; alternates: Alternate[]; history: Position[]; replay?: Position; airport?: Airport; reset: number; theme: "dark" | "light" }) {
+export default function FlightMap({ state, flights, selected, onSelect, layers, alternates, history, replay, airport, reset, theme, scenarioFlightIds }: { state: MapState; flights: Flight[]; selected?: Flight; onSelect: (id: number) => void; layers: Layers; alternates: Alternate[]; history: Position[]; replay?: Position; airport?: Airport; reset: number; theme: "dark" | "light"; scenarioFlightIds: number[] }) {
   const actual = history.length > 1 ? history.map((p) => latlng(p.position.coordinates)) : selected?.actual_geometry?.coordinates.map(latlng);
+  const scenarioFlights = flights.filter((f) => scenarioFlightIds.includes(f.flight_id));
   return <MapContainer center={[22, 75]} zoom={3} minZoom={2} maxZoom={13} zoomControl={false} className={`flight-map theme-${theme}`}>
-    <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" attribution="Tiles &copy; Esri" maxNativeZoom={16} /><ZoomControl position="bottomright" /><Focus flight={selected} airport={airport} reset={reset} />
+    <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" attribution="Tiles &copy; Esri" maxNativeZoom={16} /><ZoomControl position="bottomright" /><Focus flight={selected} airport={airport} reset={reset} scenarioFlights={scenarioFlights} />
     {layers.routes && flights.filter((f) => isAirborne(f.flight_status)).map((f) => <Polyline key={f.flight_id} positions={f.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: f.impacts.length ? "#d17056" : "#5586a9", weight: 1, opacity: f.impacts.length ? .45 : .18 }} />)}
     {layers.weather && state.weather.map((w) => <Polygon key={w.weather_id} positions={w.geometry.coordinates.map((r) => r.map(latlng))} pathOptions={{ color: "#ce9855", weight: 1, dashArray: "5 5", fillColor: "#bd8037", fillOpacity: .17 }}><Tooltip>{w.weather_type.replaceAll("_", " ")} · Severity {w.severity}/5 · DEMO</Tooltip></Polygon>)}
     {layers.airspace && state.airspace.map((z) => <Polygon key={z.airspace_zone_id} positions={z.geometry.coordinates.map((r) => r.map(latlng))} pathOptions={{ color: "#b37371", weight: 1, dashArray: "3 5", fillOpacity: .1 }}><Tooltip>{z.zone_name}<br />{z.lower_altitude}–{z.upper_altitude} m</Tooltip></Polygon>)}
@@ -74,6 +67,7 @@ export default function FlightMap({ state, flights, selected, onSelect, layers, 
     {selected?.mitigation_type && <Polyline positions={selected.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: "#efaa57", weight: 3, opacity: .9 }}><Tooltip sticky>{selected.mitigation_type} avoidance · {selected.mitigation_reason}</Tooltip></Polyline>}
     {actual && actual.length > 1 && <Polyline positions={actual} pathOptions={{ color: "#48a9e6", weight: 3, opacity: .9 }} />}
     {alternates.map((a, i) => <CircleMarker key={a.airport_id} center={latlng(a.location.coordinates)} radius={8} pathOptions={{ color: "#86c1e8", weight: 2, fillOpacity: .2 }}><Tooltip permanent className="alternate-label">{i + 1} · {a.iata_code}</Tooltip></CircleMarker>)}
-    <Traffic flights={flights.filter((f) => ["EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"].includes(f.flight_status) || f.flight_id === selected?.flight_id)} selected={selected} onSelect={onSelect} replay={replay} clusters={layers.clusters} />
+    {scenarioFlights.map((f) => <Polyline key={`scenario-${f.flight_id}`} positions={f.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: "#f27762", weight: 2.5, opacity: .7 }} />)}
+    <Traffic flights={flights} selected={selected} onSelect={onSelect} replay={replay} />
   </MapContainer>;
 }

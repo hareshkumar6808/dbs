@@ -56,10 +56,21 @@ def test_health_map_persistence_and_replay(client, db_engine):
     assert state["network"]["daily_operations"] >= 3800
     assert state["network"]["ground"] >= 100
     statuses = {flight["flight_status"] for flight in state["flights"]}
-    assert {"EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED"} <= statuses
+    assert {"EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED", "DIVERTED", "CANCELLED"} <= statuses
+    india = {a["iata_code"] for a in state["airports"] if a["country"] == "India"}
+    assert any(f["origin"] in india and f["destination"] not in india for f in state["flights"])
+    assert any(f["origin"] not in india and f["destination"] in india for f in state["flights"])
     flight = next(f for f in state["flights"] if f["flight_status"] == "EN_ROUTE")
     assert flight["position"]["type"] == "Point" and len(flight["position"]["coordinates"]) == 3
     assert flight["distance_remaining_km"] > 0
+    assert flight["movement_phase"] in {"CLIMB", "CRUISE", "DESCENT"}
+    assert flight["operational_distance_km"] >= 0 and flight["added_distance_km"] >= 0
+    assert {x["key"] for x in state["scenario_examples"]} >= {"weather", "airspace", "high-risk", "diverted", "cancelled"}
+    lon, lat = flight["position"]["coordinates"][:2]
+    viewport = client.get(
+        f"/api/map/state?west={lon - .5}&south={lat - .5}&east={lon + .5}&north={lat + .5}"
+    ).json()
+    assert viewport["viewport_filtered"] is True and 0 < len(viewport["flights"]) < len(state["flights"])
     history = client.get(f"/api/flights/{flight['flight_id']}/positions").json()
     assert len(history) > 2
     assert history == sorted(history, key=lambda p: p["recorded_at"])

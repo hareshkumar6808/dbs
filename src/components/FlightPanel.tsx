@@ -21,6 +21,7 @@ export const time = (value: string | null) =>
     : "—";
 const number = (value: number | null, unit: string) =>
   value == null ? "—" : `${Math.round(value).toLocaleString()} ${unit}`;
+const EMPTY_PHOTO = { url: "/aircraft-fallback.webp", source: "AeroPulse illustration", credit: null as string | null, source_url: null as string | null, license: null as string | null, license_url: null as string | null };
 export default function FlightPanel({
   flight,
   onClose,
@@ -45,12 +46,12 @@ export default function FlightPanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview" | "intelligence">("overview");
-  const [photo, setPhoto] = useState({ url: "/aircraft-fallback.webp", source: "AeroPulse illustration", credit: null as string | null });
+  const [photo, setPhoto] = useState(EMPTY_PHOTO);
   useEffect(() => {
     setAlternates([]);
     setPaths([]);
     setError("");
-    setPhoto({ url: "/aircraft-fallback.webp", source: "AeroPulse illustration", credit: null });
+    setPhoto(EMPTY_PHOTO);
     api.aircraftPhoto(flight.aircraft_id).then(setPhoto).catch(() => undefined);
   }, [flight.flight_id, flight.aircraft_id]);
   async function load(kind: "alternates" | "history" | "cascade") {
@@ -142,7 +143,10 @@ export default function FlightPanel({
           <>
             <figure className="aircraft-photo">
               <img src={photo.url} alt={`${flight.manufacturer} ${flight.model}, ${flight.registration_number}`} onError={(event) => { event.currentTarget.src = "/aircraft-fallback.webp"; }} />
-              <figcaption><span>{flight.aircraft_category.replaceAll("_", " ")}</span><small>{photo.source}{photo.credit ? ` · ${photo.credit}` : ""}</small></figcaption>
+              <figcaption>
+                <span>{flight.manufacturer} {flight.model}</span>
+                <small>{photo.source_url ? <a href={photo.source_url} target="_blank" rel="noreferrer">{photo.source}</a> : photo.source}{photo.credit ? ` · ${photo.credit}` : ""}{photo.license_url && <> · <a href={photo.license_url} target="_blank" rel="noreferrer">{photo.license}</a></>}</small>
+              </figcaption>
             </figure>
             <div className="telemetry">
               <div>
@@ -161,6 +165,10 @@ export default function FlightPanel({
                 <span>TO DESTINATION</span>
                 <strong>{number(flight.distance_remaining_km, "km")}</strong>
               </div>
+              <div>
+                <span>FLIGHT PHASE</span>
+                <strong>{flight.movement_phase.replaceAll("_", " ")}</strong>
+              </div>
             </div>
             <section className="detail-section">
               <h3>AIRCRAFT</h3>
@@ -178,6 +186,17 @@ export default function FlightPanel({
               <div><i className="planned-line" /><span>Planned airway route</span><b>{flight.route_geometry.coordinates.length} waypoints</b></div>
               <div><i className="actual-line" /><span>Persisted flown track</span><b>{flight.actual_geometry?.coordinates.length ?? 0} samples</b></div>
               {flight.mitigation_type && <div><i className="avoidance-line" /><span>{flight.mitigation_type} avoidance</span><b>{flight.mitigation_reason}</b></div>}
+              <details className="route-explanation" open={!!flight.mitigation_type}>
+                <summary>Operational path explanation</summary>
+                <dl>
+                  <dt>Trigger</dt><dd>{flight.mitigation_reason ?? "No active hazard intersects this route"}</dd>
+                  <dt>Decision</dt><dd>{flight.operational_decision}</dd>
+                  <dt>Changed fixes</dt><dd>{flight.changed_waypoints}</dd>
+                  <dt>Added distance</dt><dd>{number(flight.added_distance_km, "km")}</dd>
+                  <dt>Added time</dt><dd>{number(flight.added_time_minutes, "min")}</dd>
+                  <dt>Fuel impact</dt><dd>{number(flight.estimated_extra_fuel_kg, "kg est.")}</dd>
+                </dl>
+              </details>
             </section>
             <section className="detail-section">
               <h3>

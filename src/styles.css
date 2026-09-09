@@ -651,6 +651,10 @@ button {
 .layer-menu input {
   accent-color: #8ab7d7;
 }
+.scenario-examples { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
+.scenario-examples summary { cursor: pointer; color: var(--muted); font: 700 9px var(--mono); text-transform: uppercase; }
+.scenario-examples button { display: block; width: 100%; margin-top: 4px; padding: 6px 7px; border: 0; border-radius: 2px; background: transparent; color: var(--text-muted); text-align: left; font-size: 9px; }
+.scenario-examples button:hover { background: #7ca8c218; color: inherit; }
 .aircraft-icon {
   background: none;
   border: 0;
@@ -665,27 +669,6 @@ button {
   transform: rotate(var(--heading));
   transform-origin: 50% 50%;
   transition: transform 1.8s ease-in-out;
-}
-.traffic-cluster {
-  background: none;
-  border: 0;
-}
-.traffic-cluster span {
-  width: 34px;
-  height: 34px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  border: 1px solid #83aecb;
-  outline: 6px solid #4c87ad29;
-  background: #173044e8;
-  color: #d7e9f4;
-  font: 10px var(--mono);
-  box-shadow: 0 3px 8px #0008;
-}
-.traffic-cluster span.affected {
-  border-color: #e58b72;
-  outline-color: #c45f4530;
 }
 .aircraft-icon.selected {
   border: 1px solid #bcd7eb80;
@@ -1088,6 +1071,12 @@ button {
   letter-spacing: .5px;
 }
 .aircraft-photo figcaption small { color: #a9bbc7; font-size: 7px; }
+.aircraft-photo figcaption a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+.route-explanation { margin-top: 10px; border-top: 1px solid var(--border); padding-top: 9px; }
+.route-explanation summary { cursor: pointer; color: var(--muted); font: 700 9px var(--mono); letter-spacing: .07em; }
+.route-explanation dl { margin: 9px 0 0; display: grid; grid-template-columns: 88px 1fr; gap: 7px 9px; }
+.route-explanation dt { color: var(--muted); font-size: 9px; }
+.route-explanation dd { margin: 0; font-size: 9px; line-height: 1.4; overflow-wrap: anywhere; }
 .path-status > div {
   display: grid;
   grid-template-columns: 24px 1fr auto;

@@ -34,7 +34,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 export const api = {
   state: () => request<MapState>("/map/state"),
-  aircraftPhoto: (id: number) => request<{ url: string; source: string; credit: string | null }>(`/aircraft/${id}/photo`),
+  aircraftPhoto: (id: number) => request<{ url: string; source: string; credit: string | null; source_url: string | null; license: string | null; license_url: string | null }>(`/aircraft/${id}/photo`),
   positions: (id: number) => request<Position[]>(`/flights/${id}/positions`),
   alternates: (id: number) => request<Alternate[]>(`/flights/${id}/alternates`),
   runways: (id: number) => request<Runway[]>(`/runways?airport_id=${id}`),

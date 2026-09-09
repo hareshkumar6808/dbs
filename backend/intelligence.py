@@ -5,10 +5,12 @@ from backend.routing import OPERATIONAL_ROUTE_LATERAL
 
 # A single bounded query joins latest positions and aggregates independent factors.
 FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.registration_number,
-  t.manufacturer,t.model,t.aircraft_category,r.route_code,r.origin_airport_id,r.destination_airport_id,
+  t.manufacturer,t.model,t.aircraft_category,t.cruise_speed_kmh,r.route_code,r.origin_airport_id,r.destination_airport_id,
   o.iata_code AS origin,o.city AS origin_city,d.iata_code AS destination,d.city AS destination_city,
   ST_AsGeoJSON(r.route_geometry)::json AS route_geometry,
   ST_AsGeoJSON(operational.geometry)::json AS operational_geometry,
+  ST_Length(r.route_geometry::geography)/1000 AS planned_distance_km,
+  ST_Length(operational.geometry::geography)/1000 AS operational_distance_km,
   hazard.kind AS mitigation_type,hazard.name AS mitigation_reason,
   ST_AsGeoJSON(actual.geometry)::json AS actual_geometry,
   ST_AsGeoJSON(p.position)::json AS position,p.ground_speed,p.heading,p.recorded_at,
@@ -54,6 +56,8 @@ FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.regis
     WHERE i.flight_id=f.flight_id AND i.resolution_status='OPEN' AND e.disruption_status='ACTIVE'
       AND now() BETWEEN e.start_time AND e.expected_end_time) imp ON true
   WHERE (:flight_id=0 OR f.flight_id=:flight_id)
+    AND (:bounded=false OR (p.position IS NOT NULL AND ST_Intersects(ST_Force2D(p.position),
+      ST_MakeEnvelope(:west,:south,:east,:north,4326))))
     AND (:flight_id<>0 OR (f.scheduled_arrival>now()-interval '90 minutes'
       AND f.scheduled_departure<now()+interval '6 hours'))
   ORDER BY (COALESCE(imp.delay,0)>0) DESC,
@@ -112,10 +116,36 @@ def risk(f):
     }
 
 
-def flights(db, flight_id=0, limit=2000, offset=0):
-    result = rows(db, FLIGHTS_SQL, flight_id=flight_id, limit=limit, offset=offset)
+def flights(db, flight_id=0, limit=2000, offset=0, bbox=None):
+    west, south, east, north = bbox or (-180, -90, 180, 90)
+    result = rows(db, FLIGHTS_SQL, flight_id=flight_id, limit=limit, offset=offset,
+                  bounded=bool(bbox), west=west, south=south, east=east, north=north)
     for f in result:
         f["risk"] = risk(f)
+        added = max(0, float(f["operational_distance_km"] or 0) - float(f["planned_distance_km"] or 0))
+        speed = max(1, float(f["cruise_speed_kmh"] or 800))
+        burn = {"WIDE_BODY": 5.8, "NARROW_BODY": 2.5, "REGIONAL_JET": 1.7, "TURBOPROP": 1.1}.get(f["aircraft_category"], 2.5)
+        f["added_distance_km"] = round(added, 1)
+        f["added_time_minutes"] = round(added / speed * 60)
+        f["estimated_extra_fuel_kg"] = round(added * burn)
+        f["changed_waypoints"] = max(0, len(f["operational_geometry"]["coordinates"]) - len(f["route_geometry"]["coordinates"]))
+        if f["mitigation_type"]:
+            f["operational_decision"] = (
+                f"Lateral deviation around active {f['mitigation_type'].lower()} envelope; rejoin the filed route after clearance"
+            )
+        else:
+            f["operational_decision"] = "Continue on the filed airway route"
+        altitude = float(f["altitude_m"] or 0)
+        if f["flight_status"] in ("BOARDING", "SCHEDULED", "DELAYED", "CANCELLED"):
+            f["movement_phase"] = "AT_GATE"
+        elif f["flight_status"] == "TAXIING":
+            f["movement_phase"] = "TAXI"
+        elif f["flight_status"] in ("APPROACHING", "LANDED"):
+            f["movement_phase"] = "DESCENT" if altitude else "ARRIVED"
+        elif altitude < 8000:
+            f["movement_phase"] = "CLIMB"
+        else:
+            f["movement_phase"] = "CRUISE"
     return result
 
 
