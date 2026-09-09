@@ -14,6 +14,10 @@ def replenish(db, now):
     New flight IDs preserve old replay records. A resumed idle demo starts each
     aircraft partway along its next synthetic route so a returning visitor has traffic.
     """
+    # Only one invocation rebuilds expired rotations. Other time buckets can
+    # still update already-committed flights while this batch is being created.
+    if not one(db, "SELECT pg_try_advisory_xact_lock(73003) AS locked")["locked"]:
+        return
     exhausted = rows(
         db,
         """SELECT a.aircraft_id,a.airline_id,al.iata_code,r.origin_airport_id,r.destination_airport_id,
@@ -25,6 +29,8 @@ def replenish(db, now):
     if not exhausted:
         return
     route_map = {(r["origin_airport_id"], r["destination_airport_id"]): r for r in rows(db, "SELECT * FROM route")}
+    new_flights = []
+    leg_specs = []
     for a in exhausted:
         origin, dest = a["destination_airport_id"], a["origin_airport_id"]
         route = route_map.get((origin, dest))
@@ -54,20 +60,24 @@ def replenish(db, now):
                 last_updated=now,
             )
             db.add(f)
-            db.flush()
-            db.add(
-                FlightLeg(
-                    flight_id=f.flight_id,
-                    leg_sequence=1,
-                    departure_airport_id=origin,
-                    arrival_airport_id=dest,
-                    scheduled_departure=departure,
-                    scheduled_arrival=arrival,
-                    leg_status="SCHEDULED",
-                )
-            )
+            new_flights.append(f)
+            leg_specs.append((f, origin, dest, departure, arrival))
             departure = arrival + timedelta(minutes=25 + (a["aircraft_id"] % 3) * 10)
             origin, dest = dest, origin
+    # One batched flush avoids thousands of network round trips to cloud Postgres.
+    db.flush()
+    db.add_all([
+        FlightLeg(
+            flight_id=f.flight_id,
+            leg_sequence=1,
+            departure_airport_id=origin,
+            arrival_airport_id=dest,
+            scheduled_departure=departure,
+            scheduled_arrival=arrival,
+            leg_status="SCHEDULED",
+        )
+        for f, origin, dest, departure, arrival in leg_specs
+    ])
     db.flush()
 
 
@@ -75,9 +85,12 @@ def tick(db):
     if settings().effective_mode != "demo":
         return {"updated": 0, "mode": settings().effective_mode}
     # All clients share a transaction lock and a ten-second DB time bucket.
-    if not one(db, "SELECT pg_try_advisory_xact_lock(73002) AS locked")["locked"]:
-        return {"updated": 0, "mode": "demo"}
     now = datetime.fromtimestamp(int(datetime.now(timezone.utc).timestamp() // 10) * 10, timezone.utc)
+    # Scope the lock to this time bucket. If a serverless invocation is frozen
+    # while holding an older transaction lock, later buckets can still advance.
+    bucket = int(now.timestamp() // 10 % 2_147_483_647)
+    if not one(db, "SELECT pg_try_advisory_xact_lock(73002,:bucket) AS locked", bucket=bucket)["locked"]:
+        return {"updated": 0, "mode": "demo"}
     replenish(db, now)
     # Keep the ground phase visible as the rolling timetable advances.
     db.execute(
