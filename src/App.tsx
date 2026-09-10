@@ -82,6 +82,9 @@ export default function App() {
   }, [refresh]);
   const selected = state?.flights.find((f) => f.flight_id === selectedId);
   const select = (id: number) => {
+    const flight = state?.flights.find((item) => item.flight_id === id);
+    if (flight?.mitigation_type === "WEATHER") setLayers((value) => ({ ...value, weather: true }));
+    if (flight?.mitigation_type === "AIRSPACE") setLayers((value) => ({ ...value, airspace: true }));
     setSelectedId(id);
     setTool(null);
     setHistory([]);
@@ -554,7 +557,7 @@ export default function App() {
               </span>
               <span>
                 <i className="elevated" />
-                High risk
+                Near weather
               </span>
               <span>
                 <i className="impacted" />

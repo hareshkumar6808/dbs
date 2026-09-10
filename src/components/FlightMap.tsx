@@ -31,7 +31,8 @@ const silhouettes: Record<string, string> = {
 function AircraftMarker({ flight, selected, onSelect, replay }: { flight: Flight; selected: boolean; onSelect: (id: number) => void; replay?: Position }) {
   const heading = replay?.heading ?? flight.heading ?? 0;
   const airborne = isAirborne(flight.flight_status);
-  const color = selected ? "#ffffff" : flight.impacts.length ? "#f27762" : flight.risk.level === "HIGH" ? "#efaa57" : "#86b5d9";
+  const nearWeather = flight.inside_weather || flight.approaching_weather;
+  const color = selected ? "#ffffff" : flight.impacts.length ? "#f27762" : nearWeather ? "#efaa57" : "#86b5d9";
   const icon = useMemo(() => L.divIcon({ className: `aircraft-icon ${airborne ? "airborne" : "ground"} ${selected ? "selected" : ""}`, iconSize: [24, 24], iconAnchor: [12, 12], html: airborne ? `<svg class="aircraft-silhouette" style="--heading:${heading}deg" viewBox="0 0 24 24" fill="${color}" stroke="#10202c" stroke-width=".7"><path d="${silhouettes[flight.aircraft_category] ?? silhouettes.NARROW_BODY}"/></svg>` : `<span class="ground-marker" style="border-color:${color}"><i style="background:${color}"></i></span>` }), [heading, color, selected, airborne, flight.aircraft_category]);
   const position = replay?.position ?? flight.position;
   if (!position) return null;
@@ -56,18 +57,28 @@ function Traffic({ flights, selected, onSelect, replay }: { flights: Flight[]; s
 export default function FlightMap({ state, flights, selected, onSelect, layers, alternates, history, replay, airport, reset, theme, scenarioFlightIds }: { state: MapState; flights: Flight[]; selected?: Flight; onSelect: (id: number) => void; layers: Layers; alternates: Alternate[]; history: Position[]; replay?: Position; airport?: Airport; reset: number; theme: "dark" | "light"; scenarioFlightIds: number[] }) {
   const actual = history.length > 1 ? history.map((p) => latlng(p.position.coordinates)) : selected?.actual_geometry?.coordinates.map(latlng);
   const scenarioFlights = flights.filter((f) => scenarioFlightIds.includes(f.flight_id));
-  return <MapContainer center={[22, 75]} zoom={3} minZoom={2} maxZoom={13} zoomControl={false} className={`flight-map theme-${theme}`}>
-    <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" attribution="Tiles &copy; Esri" maxNativeZoom={16} /><ZoomControl position="bottomright" /><Focus flight={selected} airport={airport} reset={reset} scenarioFlights={scenarioFlights} />
+  const origin = selected ? state.airports.find((a) => a.airport_id === selected.origin_airport_id) : undefined;
+  const destination = selected ? state.airports.find((a) => a.airport_id === selected.destination_airport_id) : undefined;
+  const withEndpoints = (coordinates: number[][] | undefined) => {
+    if (!coordinates?.length || !origin || !destination) return coordinates?.map(latlng) ?? [];
+    const corrected = coordinates.map((point) => [...point]);
+    corrected[0] = [...origin.location.coordinates];
+    corrected[corrected.length - 1] = [...destination.location.coordinates];
+    return corrected.map(latlng);
+  };
+  return <MapContainer center={[22, 75]} zoom={3} minZoom={2} maxZoom={13} maxBounds={[[-55, -170], [70, 180]]} maxBoundsViscosity={1} worldCopyJump={false} zoomControl={false} className={`flight-map theme-${theme}`}>
+    <TileLayer noWrap url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" attribution="Tiles &copy; Esri" maxNativeZoom={16} /><ZoomControl position="bottomright" /><Focus flight={selected} airport={airport} reset={reset} scenarioFlights={scenarioFlights} />
     {layers.routes && flights.filter((f) => isAirborne(f.flight_status)).map((f) => <Polyline key={f.flight_id} positions={f.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: f.impacts.length ? "#d17056" : "#5586a9", weight: 1, opacity: f.impacts.length ? .45 : .18 }} />)}
     {layers.weather && state.weather.map((w) => <Polygon key={w.weather_id} positions={w.geometry.coordinates.map((r) => r.map(latlng))} pathOptions={{ color: "#ce9855", weight: 1, dashArray: "5 5", fillColor: "#bd8037", fillOpacity: .17 }}><Tooltip>{w.weather_type.replaceAll("_", " ")} · Severity {w.severity}/5 · DEMO</Tooltip></Polygon>)}
     {layers.airspace && state.airspace.map((z) => <Polygon key={z.airspace_zone_id} positions={z.geometry.coordinates.map((r) => r.map(latlng))} pathOptions={{ color: "#b37371", weight: 1, dashArray: "3 5", fillOpacity: .1 }}><Tooltip>{z.zone_name}<br />{z.lower_altitude}–{z.upper_altitude} m</Tooltip></Polygon>)}
     {layers.disruptions && state.disruptions.filter((d) => d.is_active && d.geometry).map((d) => <Polygon key={d.disruption_id} positions={d.geometry.coordinates.map((r) => r.map(latlng))} pathOptions={{ color: "#e77b63", weight: 1.5, fillOpacity: .12 }}><Tooltip>{d.description}</Tooltip></Polygon>)}
     {layers.airports && state.airports.map((a) => <CircleMarker key={a.airport_id} center={latlng(a.location.coordinates)} radius={3} pathOptions={{ color: "#9fadb7", weight: 1, fillColor: "#15212b", fillOpacity: 1 }}><Tooltip permanent={a.country === "India" && a.airport_id <= 12} direction="bottom" className="airport-label" offset={[0, 3]}>{a.iata_code}</Tooltip><Popup>{a.iata_code} · {a.airport_name}<br />{a.city}, {a.country} · Infrastructure: {a.operational_status}</Popup></CircleMarker>)}
-    {selected && <Polyline positions={selected.route_geometry.coordinates.map(latlng)} pathOptions={{ color: "#e5edf3", weight: 2, opacity: .8, dashArray: "5 7" }} />}
-    {selected?.mitigation_type && <Polyline positions={selected.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: "#efaa57", weight: 3, opacity: .9 }}><Tooltip sticky>{selected.mitigation_type} avoidance · {selected.mitigation_reason}</Tooltip></Polyline>}
-    {actual && actual.length > 1 && <Polyline positions={actual} pathOptions={{ color: "#48a9e6", weight: 3, opacity: .9 }} />}
+    {selected && <Polyline positions={withEndpoints(selected.route_geometry.coordinates)} pathOptions={{ color: "#dbe4ea", weight: 2, opacity: .72, dashArray: "6 7" }} />}
+    {selected?.mitigation_type && <Polyline positions={withEndpoints(selected.operational_geometry.coordinates)} pathOptions={{ color: "#efaa57", weight: 2.5, opacity: .9, dashArray: "3 5" }}><Tooltip sticky>{selected.mitigation_type} avoidance · {selected.mitigation_reason}</Tooltip></Polyline>}
+    {actual && actual.length > 1 && <Polyline positions={actual} pathOptions={{ color: "#48a9e6", weight: 2.5, opacity: .9 }} />}
+    {origin && <CircleMarker center={latlng(origin.location.coordinates)} radius={5} pathOptions={{ color: "#dbe4ea", fillColor: "#172631", fillOpacity: 1, weight: 2 }}><Tooltip permanent direction="left">{origin.iata_code} · ORIGIN</Tooltip></CircleMarker>}
+    {destination && <CircleMarker center={latlng(destination.location.coordinates)} radius={5} pathOptions={{ color: "#dbe4ea", fillColor: "#172631", fillOpacity: 1, weight: 2 }}><Tooltip permanent direction="right">{destination.iata_code} · DESTINATION</Tooltip></CircleMarker>}
     {alternates.map((a, i) => <CircleMarker key={a.airport_id} center={latlng(a.location.coordinates)} radius={8} pathOptions={{ color: "#86c1e8", weight: 2, fillOpacity: .2 }}><Tooltip permanent className="alternate-label">{i + 1} · {a.iata_code}</Tooltip></CircleMarker>)}
-    {scenarioFlights.map((f) => <Polyline key={`scenario-${f.flight_id}`} positions={f.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: "#f27762", weight: 2.5, opacity: .7 }} />)}
     <Traffic flights={flights} selected={selected} onSelect={onSelect} replay={replay} />
   </MapContainer>;
 }

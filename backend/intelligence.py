@@ -75,11 +75,11 @@ def risk(f):
 
     if f["flight_status"] in ("LANDED", "CANCELLED"):
         return {"score": 0, "level": "LOW", "factors": [], "method": "deterministic-v1"}
-    if f["weather_severity"]:
+    if f["weather_severity"] and (f["inside_weather"] or f["approaching_weather"]):
         add(
             "WEATHER",
             f["weather_severity"] * 7,
-            "Route intersects an active weather zone (severity %s/5)" % f["weather_severity"],
+            "Aircraft is inside or approaching an active weather zone (severity %s/5)" % f["weather_severity"],
         )
     if f["inside_weather"]:
         add("INSIDE_WEATHER", 10, "Latest recorded position is inside the weather region")

@@ -11,7 +11,7 @@ from backend.models import (
     FlightPosition, Route, Runway, WeatherEvent,
 )
 
-NETWORK_VERSION = 6
+NETWORK_VERSION = 10
 TARGET_FLIGHTS = 3800
 
 # iata, icao, name, city, country, lon, lat, elevation m, runway m, timezone
@@ -190,16 +190,26 @@ def ensure_demo_network(db):
          WHERE o.country<>'India' AND d.country='India' AND f.scheduled_arrival>now()-interval '90 minutes'
            AND f.scheduled_departure<now()+interval '6 hours') AS inbound_international,
         (SELECT count(DISTINCT flight_status) FROM flight
-          WHERE flight_status IN ('EN_ROUTE','APPROACHING','TAXIING','BOARDING','DELAYED','LANDED','SCHEDULED','DIVERTED','CANCELLED')) AS scenario_states""")
+          WHERE flight_status IN ('EN_ROUTE','APPROACHING','TAXIING','BOARDING','DELAYED','LANDED','SCHEDULED','DIVERTED','CANCELLED')) AS scenario_states,
+        (SELECT count(*) FROM weather_event WHERE weather_status='ACTIVE') AS baseline_weather,
+        (SELECT count(*) FROM weather_event WHERE weather_status='ACTIVE'
+          AND ST_XMax(Box3D(affected_area_geometry))-ST_XMin(Box3D(affected_area_geometry)) <= 2.2
+          AND ST_YMax(Box3D(affected_area_geometry))-ST_YMin(Box3D(affected_area_geometry)) <= 2.2) AS compact_weather,
+        (SELECT count(*) FROM airport a JOIN weather_event w
+          ON w.weather_status='ACTIVE' AND ST_Intersects(a.location,w.affected_area_geometry)) AS airports_inside_weather,
+        (SELECT count(*) FROM airspace_zone WHERE zone_status='ACTIVE') AS baseline_airspace""")
     if (counts["airports"] >= 70 and counts["flights"] >= TARGET_FLIGHTS
             and not counts["bad_longhaul"] and not counts["bad_domestic"] and not counts["simple_routes"]
             and counts["outbound_international"] >= 20 and counts["inbound_international"] >= 20
-            and counts["scenario_states"] == 9):
+            and counts["scenario_states"] == 9 and counts["baseline_weather"] == 4
+            and counts["compact_weather"] == 4
+            and counts["airports_inside_weather"] == 0
+            and counts["baseline_airspace"] == 1):
         _sync_sequences(db)
         db.commit()
         return {"seeded": False, "version": NETWORK_VERSION, **counts}
     if counts["airports"]:
-        db.execute(text("TRUNCATE airport, airline, aircraft_type RESTART IDENTITY CASCADE"))
+        db.execute(text("TRUNCATE airport, airline, aircraft_type, weather_event, airspace_zone RESTART IDENTITY CASCADE"))
     return seed(db)
 
 
@@ -324,10 +334,12 @@ def seed(db):
             if leg == 0:
                 a, b = AIRPORTS[origin - 1], AIRPORTS[dest - 1]
                 heading = _heading(a, b)
-                samples = 4 if status in {"EN_ROUTE", "APPROACHING", "DIVERTED"} else 1
+                samples = 10 if status in {"EN_ROUTE", "APPROACHING", "DIVERTED"} else 1
                 for sample in range(samples):
                     position_id += 1
-                    sample_fraction = max(0.0, fraction - (samples - 1 - sample) * 0.012)
+                    # The persisted track runs from the departure airport to the
+                    # current observation, instead of floating near the aircraft.
+                    sample_fraction = fraction * sample / (samples - 1) if samples > 1 else fraction
                     # Seeded samples follow the waypoint route; live ticks later apply active hazard avoidance.
                     lon, lat = _interpolate(_waypoint_coordinates(a, b, route.route_id), sample_fraction)
                     altitude = 0 if status in {"BOARDING", "DELAYED", "TAXIING", "LANDED", "SCHEDULED", "CANCELLED"} else round(11200 * sin(3.14159 * sample_fraction))
@@ -342,7 +354,16 @@ def seed(db):
             departure = arrival + timedelta(minutes=35 + idx % 25)
     db.add(WeatherEvent(weather_type="CONVECTIVE_STORM", severity=4, movement_direction=280,
                         movement_speed_kmh=22, start_time=now - timedelta(hours=2), end_time=now + timedelta(days=30),
-                        weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((79 12,81.8 12.8,82.2 15.8,80.1 16.5,78.9 14.5,79 12))"))
+                         weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((78.4 14.25,80.0 14.3,80.1 15.8,78.55 15.9,78.4 14.25))"))
+    db.add(WeatherEvent(weather_type="MONSOON_CELL", severity=3, movement_direction=45,
+                        movement_speed_kmh=18, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                         weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((73.35 15.85,74.85 15.9,74.95 17.35,73.5 17.45,73.35 15.85))"))
+    db.add(WeatherEvent(weather_type="THUNDERSTORM", severity=4, movement_direction=95,
+                        movement_speed_kmh=26, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                         weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((73.45 26.0,75.0 26.05,75.1 27.5,73.6 27.55,73.45 26.0))"))
+    db.add(WeatherEvent(weather_type="CONVECTIVE_LINE", severity=3, movement_direction=250,
+                        movement_speed_kmh=20, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                         weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((85.55 21.85,87.15 21.9,87.2 23.4,85.7 23.5,85.55 21.85))"))
     db.add(AirspaceZone(zone_name="Deccan training sector · DEMO", zone_type="MILITARY", lower_altitude=0,
                         upper_altitude=14000, valid_from=now - timedelta(days=1), valid_until=now + timedelta(days=30),
                         zone_status="ACTIVE", geometry="SRID=4326;POLYGON((75.8 16,77.5 16,77.5 18,75.8 18,75.8 16))"))

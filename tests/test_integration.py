@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from fastapi.testclient import TestClient
 from backend.db import session
 from backend.main import app
+from backend.routing import OPERATIONAL_ROUTE_LATERAL
 from backend.seed import seed
 
 pytestmark = pytest.mark.integration
@@ -78,6 +79,16 @@ def test_health_map_persistence_and_replay(client, db_engine):
         assert db.execute(
             text("SELECT count(*) FROM flight_position WHERE flight_id=:id"), {"id": flight["flight_id"]}
         ).scalar() >= len(history)
+        assert db.execute(text("""SELECT count(*) FROM route r
+          JOIN airport o ON o.airport_id=r.origin_airport_id
+          JOIN airport d ON d.airport_id=r.destination_airport_id
+          WHERE ST_Distance(ST_StartPoint(r.route_geometry)::geography,o.location::geography)>1
+             OR ST_Distance(ST_EndPoint(r.route_geometry)::geography,d.location::geography)>1""")).scalar() == 0
+        assert db.execute(text("""SELECT count(*) FROM airport a JOIN weather_event w
+          ON w.weather_status='ACTIVE' AND ST_Intersects(a.location,w.affected_area_geometry)""")).scalar() == 0
+        assert db.execute(text("""SELECT count(*) FROM route r """ + OPERATIONAL_ROUTE_LATERAL + """
+          WHERE hazard.geometry IS NOT NULL
+            AND ST_Intersects(operational.geometry,ST_Buffer(hazard.geometry,-.005))""")).scalar() == 0
 
 
 def test_spatial_queries_and_copilot(client):
