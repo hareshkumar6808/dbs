@@ -11,7 +11,7 @@ from backend.models import (
     FlightPosition, Route, Runway, WeatherEvent,
 )
 
-NETWORK_VERSION = 5
+NETWORK_VERSION = 6
 TARGET_FLIGHTS = 3800
 
 # iata, icao, name, city, country, lon, lat, elevation m, runway m, timezone
