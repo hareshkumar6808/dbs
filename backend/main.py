@@ -118,7 +118,7 @@ AIRCRAFT_MODEL_PHOTOS = {
     ("Boeing", "737 MAX 8"): ("N8878L Boeing 737 MAX 8 s n 67914 (54411151099).jpg", "Tomás Del Coro", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
     ("Boeing", "737-800"): ("B737-800.jpg", "João Pedro Wanzeller", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
     ("Airbus", "A350-900"): ("Airbus A350-900 (27893058818).jpg", "Lutz Blohm", "CC BY-SA 2.0", "https://creativecommons.org/licenses/by-sa/2.0/"),
-    ("Boeing", "787-9 Dreamliner"): ("First flight of Boeing 787-9.jpg", "Gordon Werner", "CC BY 2.0", "https://creativecommons.org/licenses/by/2.0/"),
+    ("Boeing", "787-9 Dreamliner"): ("Boeing 787-9 Dreamliner.jpg", "Samson Ng", "CC BY-SA 4.0", "https://creativecommons.org/licenses/by-sa/4.0/"),
     ("Boeing", "777-300ER"): ("Boeing 777-300ER Singapore Airlines.JPG", "Gab01", "CC BY-SA 3.0", "https://creativecommons.org/licenses/by-sa/3.0/"),
     ("ATR", "72-600"): ("An ATR 72-600.jpg", "9k32Strela", "CC0 1.0", "https://creativecommons.org/publicdomain/zero/1.0/"),
     ("Embraer", "ERJ-145"): ("Embraer ERJ-145LR ‘N677AE’ American Eagle.jpg", "Alan Wilson", "CC BY-SA 2.0", "https://creativecommons.org/licenses/by-sa/2.0/"),
