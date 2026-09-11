@@ -28,7 +28,9 @@ function InitialFit({ flights }: { flights: Flight[] }) {
   const fitted = useRef(false);
   useEffect(() => {
     if (fitted.current) return;
-    const points = flights.flatMap((flight) => flight.position ? [latlng(flight.position.coordinates)] : []);
+    const positioned = flights.flatMap((flight) => flight.position ? [flight.position.coordinates] : []);
+    const core = positioned.filter(([lon, lat]) => lon >= 20 && lon <= 125 && lat >= -15 && lat <= 60);
+    const points = (core.length ? core : positioned).map(latlng);
     if (!points.length) return;
     fitted.current = true;
     map.fitBounds(points, { padding: [28, 28], maxZoom: 3, animate: false });
