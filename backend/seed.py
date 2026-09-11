@@ -11,7 +11,7 @@ from backend.models import (
     FlightPosition, Route, Runway, WeatherEvent,
 )
 
-NETWORK_VERSION = 10
+NETWORK_VERSION = 11
 TARGET_FLIGHTS = 3800
 
 # iata, icao, name, city, country, lon, lat, elevation m, runway m, timezone
@@ -201,8 +201,8 @@ def ensure_demo_network(db):
     if (counts["airports"] >= 70 and counts["flights"] >= TARGET_FLIGHTS
             and not counts["bad_longhaul"] and not counts["bad_domestic"] and not counts["simple_routes"]
             and counts["outbound_international"] >= 20 and counts["inbound_international"] >= 20
-            and counts["scenario_states"] == 9 and counts["baseline_weather"] == 4
-            and counts["compact_weather"] == 4
+            and counts["scenario_states"] == 9 and counts["baseline_weather"] == 8
+            and counts["compact_weather"] == 8
             and counts["airports_inside_weather"] == 0
             and counts["baseline_airspace"] == 1):
         _sync_sequences(db)
@@ -364,6 +364,18 @@ def seed(db):
     db.add(WeatherEvent(weather_type="CONVECTIVE_LINE", severity=3, movement_direction=250,
                         movement_speed_kmh=20, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
                          weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((85.55 21.85,87.15 21.9,87.2 23.4,85.7 23.5,85.55 21.85))"))
+    db.add(WeatherEvent(weather_type="ARABIAN_SEA_STORM", severity=3, movement_direction=60,
+                        movement_speed_kmh=28, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                        weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((61.1 20.8,62.8 20.9,62.9 22.4,61.25 22.5,61.1 20.8))"))
+    db.add(WeatherEvent(weather_type="BAY_OF_BENGAL_CELL", severity=4, movement_direction=300,
+                        movement_speed_kmh=24, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                        weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((91.8 14.7,93.5 14.8,93.55 16.35,91.95 16.45,91.8 14.7))"))
+    db.add(WeatherEvent(weather_type="SOUTHEAST_ASIA_CELL", severity=3, movement_direction=20,
+                        movement_speed_kmh=20, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                        weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((96.0 8.7,97.6 8.8,97.7 10.3,96.15 10.4,96.0 8.7))"))
+    db.add(WeatherEvent(weather_type="MEDITERRANEAN_FRONT", severity=3, movement_direction=85,
+                        movement_speed_kmh=35, start_time=now - timedelta(hours=1), end_time=now + timedelta(days=30),
+                        weather_status="ACTIVE", affected_area_geometry="SRID=4326;POLYGON((33.1 37.4,34.8 37.5,34.9 39.0,33.25 39.1,33.1 37.4))"))
     db.add(AirspaceZone(zone_name="Deccan training sector · DEMO", zone_type="MILITARY", lower_altitude=0,
                         upper_altitude=14000, valid_from=now - timedelta(days=1), valid_until=now + timedelta(days=30),
                         zone_status="ACTIVE", geometry="SRID=4326;POLYGON((75.8 16,77.5 16,77.5 18,75.8 18,75.8 16))"))

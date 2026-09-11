@@ -87,6 +87,7 @@ export default function App() {
     if (flight?.mitigation_type === "AIRSPACE") setLayers((value) => ({ ...value, airspace: true }));
     setSelectedId(id);
     setTool(null);
+    setScenarioFlightIds([]);
     setHistory([]);
     setReplay(undefined);
     setReplayIndex(-1);
@@ -141,8 +142,15 @@ export default function App() {
     setRiskFilter(false);
     setAffected(false);
   };
+  const closeTool = () => {
+    setTool(null);
+    setScenarioFlightIds([]);
+    setAlternates([]);
+  };
   const openTool = (t: "lab" | "copilot") => {
-    setTool(tool === t ? null : t);
+    if (tool === t) { closeTool(); return; }
+    setTool(t);
+    setScenarioFlightIds([]);
     setSelectedId(undefined);
     setHistory([]);
     setReplay(undefined);
@@ -173,7 +181,7 @@ export default function App() {
         <nav>
           <button
             className={!tool ? "active" : ""}
-            onClick={() => setTool(null)}
+            onClick={closeTool}
           >
             <MapIcon size={15} /> Airspace
           </button>
@@ -457,6 +465,7 @@ export default function App() {
               reset={reset}
               theme={theme}
               scenarioFlightIds={scenarioFlightIds}
+              showDisruptionImpacts={tool === "lab"}
             />
           ) : (
             <div className="map-placeholder">
@@ -534,6 +543,8 @@ export default function App() {
                 <summary>Scenario examples</summary>
                 {(state?.scenario_examples ?? []).map((scenario) => (
                   <button key={scenario.key} onClick={() => {
+                    const exampleId = scenario.flight_ids[0];
+                    if (exampleId) select(exampleId);
                     setScenarioFlightIds(scenario.flight_ids);
                     setLayersOpen(false);
                     if (scenario.key === "weather") setLayers((value) => ({ ...value, weather: true }));
@@ -595,18 +606,20 @@ export default function App() {
           <DisruptionPanel
             state={state}
             onClose={() => {
-              setTool(null);
-              setAlternates([]);
+              closeTool();
             }}
             onChange={refresh}
             onAlternates={setAlternates}
             onSelect={select}
-            onFocus={setScenarioFlightIds}
+            onFocus={(ids) => {
+              setScenarioFlightIds(ids);
+              setLayers((value) => ({ ...value, disruptions: true }));
+            }}
           />
         )}
         {tool === "copilot" && (
           <Copilot
-            onClose={() => setTool(null)}
+            onClose={closeTool}
             onSelect={select}
             onAlternates={setAlternates}
           />

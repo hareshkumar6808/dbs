@@ -56,6 +56,8 @@ def test_health_map_persistence_and_replay(client, db_engine):
     assert state["mode"] == "demo" and state["network"]["airborne"] >= 300
     assert state["network"]["daily_operations"] >= 3800
     assert state["network"]["ground"] >= 100
+    assert len(state["weather"]) == 8
+    assert sum(1 for event in state["weather"] if event["geometry"]["coordinates"][0][0][0] < 60 or event["geometry"]["coordinates"][0][0][0] > 94) >= 2
     statuses = {flight["flight_status"] for flight in state["flights"]}
     assert {"EN_ROUTE", "APPROACHING", "TAXIING", "BOARDING", "DELAYED", "LANDED", "SCHEDULED", "DIVERTED", "CANCELLED"} <= statuses
     india = {a["iata_code"] for a in state["airports"] if a["country"] == "India"}
@@ -86,6 +88,13 @@ def test_health_map_persistence_and_replay(client, db_engine):
              OR ST_Distance(ST_EndPoint(r.route_geometry)::geography,d.location::geography)>1""")).scalar() == 0
         assert db.execute(text("""SELECT count(*) FROM airport a JOIN weather_event w
           ON w.weather_status='ACTIVE' AND ST_Intersects(a.location,w.affected_area_geometry)""")).scalar() == 0
+        assert db.execute(text("""SELECT count(*) FROM airspace_zone z JOIN flight f
+          ON f.flight_status IN ('EN_ROUTE','APPROACHING')
+          JOIN LATERAL(SELECT position FROM flight_position p WHERE p.flight_id=f.flight_id
+            ORDER BY recorded_at DESC LIMIT 1) latest ON true
+          WHERE z.zone_status='ACTIVE' AND now() BETWEEN z.valid_from AND z.valid_until
+            AND ST_Contains(z.geometry,ST_Force2D(latest.position))
+            AND ST_Z(latest.position) BETWEEN z.lower_altitude AND z.upper_altitude""")).scalar() == 0
         assert db.execute(text("""SELECT count(*) FROM route r """ + OPERATIONAL_ROUTE_LATERAL + """
           WHERE hazard.geometry IS NOT NULL
             AND ST_Intersects(operational.geometry,ST_Buffer(hazard.geometry,-.005))""")).scalar() == 0
@@ -121,6 +130,12 @@ def test_simulation_risk_cascade_and_reset(client, kind):
     result = r.json()
     try:
         assert result["direct_flights"] and result["downstream_flights"]
+        assert not any(
+            flight["flight_status"] in {"EN_ROUTE", "APPROACHING"}
+            and flight["origin_airport_id"] == 1
+            and flight["destination_airport_id"] != 1
+            for flight in result["direct_flights"]
+        )
         assert result["alternates"]
         event_id = result["disruption_id"]
         impacts = client.get(f"/api/disruptions/{event_id}/impacts").json()

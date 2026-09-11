@@ -87,12 +87,23 @@ def simulate(db, request):
     db.flush()
     direct = rows(
         db,
-        """SELECT f.flight_id,f.flight_number,f.aircraft_id,f.flight_status,r.destination_airport_id
-        FROM flight f JOIN route r USING(route_id) WHERE f.flight_status IN ('SCHEDULED','EN_ROUTE')
+        """SELECT f.flight_id,f.flight_number,f.aircraft_id,f.flight_status,
+          r.origin_airport_id,r.destination_airport_id
+        FROM flight f JOIN route r USING(route_id)
+        LEFT JOIN LATERAL(SELECT position FROM flight_position fp WHERE fp.flight_id=f.flight_id
+          ORDER BY recorded_at DESC LIMIT 1) p ON true
+        WHERE f.flight_status IN ('SCHEDULED','BOARDING','DELAYED','TAXIING','EN_ROUTE','APPROACHING')
         AND f.scheduled_departure<:end AND f.scheduled_arrival>:now AND
-        ((CAST(:weather AS integer) IS NULL AND (r.origin_airport_id=:airport OR r.destination_airport_id=:airport)) OR
+        ((CAST(:weather AS integer) IS NULL AND
+          ((r.origin_airport_id=:airport AND f.flight_status IN ('SCHEDULED','BOARDING','DELAYED','TAXIING'))
+           OR (r.destination_airport_id=:airport AND f.flight_status IN
+             ('SCHEDULED','BOARDING','DELAYED','TAXIING','EN_ROUTE','APPROACHING')))) OR
         (CAST(:weather AS integer) IS NOT NULL AND EXISTS(SELECT 1 FROM weather_event w WHERE w.weather_id=:weather
-          AND ST_Intersects(w.affected_area_geometry,r.route_geometry))))""",
+          AND ((f.flight_status IN ('SCHEDULED','BOARDING','DELAYED','TAXIING')
+                AND ST_Intersects(w.affected_area_geometry,r.route_geometry))
+            OR (f.flight_status IN ('EN_ROUTE','APPROACHING') AND p.position IS NOT NULL
+                AND ST_Intersects(w.affected_area_geometry,
+                  ST_MakeLine(ST_Force2D(p.position),(SELECT location FROM airport WHERE airport_id=r.destination_airport_id))))))))""",
         end=end,
         now=now,
         airport=request.airport_id,

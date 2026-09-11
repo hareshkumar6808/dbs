@@ -721,6 +721,22 @@ button {
   font-size: 10px;
   box-shadow: none;
 }
+.scenario-label.leaflet-tooltip,
+.disruption-label.leaflet-tooltip {
+  border-radius: 3px;
+  padding: 4px 7px;
+  font: 700 8px var(--mono);
+  letter-spacing: .05em;
+}
+.scenario-label.leaflet-tooltip {
+  background: #173247ed;
+  border-color: #69a8cf;
+}
+.disruption-label.leaflet-tooltip {
+  background: #4a211ded;
+  border-color: #ee806d;
+  color: #ffe3dc;
+}
 .map-bottom {
   position: absolute;
   bottom: 26px;

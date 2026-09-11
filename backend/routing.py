@@ -8,12 +8,12 @@ OPERATIONAL_ROUTE_LATERAL = """
 LEFT JOIN LATERAL (
   SELECT hazard.geometry,hazard.kind,hazard.name FROM (
     SELECT we.affected_area_geometry AS geometry,'WEATHER'::text AS kind,
-      we.weather_type::text AS name,1 AS priority
+      we.weather_type::text AS name,2 AS priority
     FROM weather_event we
     WHERE we.weather_status='ACTIVE' AND now() BETWEEN we.start_time AND we.end_time
       AND ST_Intersects(r.route_geometry,we.affected_area_geometry)
     UNION ALL
-    SELECT az.geometry,'AIRSPACE'::text,az.zone_name::text,2
+    SELECT az.geometry,'AIRSPACE'::text,az.zone_name::text,1
     FROM airspace_zone az
     WHERE az.zone_status='ACTIVE' AND now() BETWEEN az.valid_from AND az.valid_until
       AND az.zone_type IN ('RESTRICTED','PROHIBITED','MILITARY','TEMPORARY')

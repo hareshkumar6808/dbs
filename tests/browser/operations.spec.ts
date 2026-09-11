@@ -39,6 +39,10 @@ test("database traffic, aircraft selection, overlays and persisted replay", asyn
   await page.getByRole("button", { name: "Layers", exact: true }).click();
   await page.getByLabel("Weather", { exact: true }).uncheck();
   await expect(page.getByLabel("Weather", { exact: true })).not.toBeChecked();
+  await page.getByText("Scenario examples", { exact: true }).click();
+  await page.getByRole("button", { name: "Weather avoidance", exact: true }).click();
+  await expect(page.getByLabel("Flight details", { exact: true })).toBeVisible();
+  await expect(page.locator(".scenario-label")).toContainText("SCENARIO");
 });
 
 test("shared scenario persists across pages and resolves", async ({
@@ -66,6 +70,11 @@ test("shared scenario persists across pages and resolves", async ({
     await expect(
       page.getByText(`SCENARIO #${event.disruption_id} · RESULTS`),
     ).toBeVisible();
+    await expect(page.locator(".scenario-label").first()).toBeVisible();
+    await page.getByRole("button", { name: "Close disruption lab" }).click();
+    await expect(page.locator(".scenario-label")).toHaveCount(0);
+    await expect(page.locator('.aircraft-silhouette[fill="#f27762"]')).toHaveCount(0);
+    await page.getByRole("button", { name: "Disruption lab", exact: true }).click();
     const another = await context.newPage();
     await another.goto("/");
     await another.getByRole("button", { name: "Flights", exact: true }).click();
