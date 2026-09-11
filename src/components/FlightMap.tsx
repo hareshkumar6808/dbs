@@ -83,7 +83,7 @@ export default function FlightMap({ state, flights, selected, onSelect, layers, 
     corrected[corrected.length - 1] = [...destination.location.coordinates];
     return corrected.map(latlng);
   };
-  return <MapContainer center={[18, 70]} zoom={2} minZoom={2} maxZoom={13} maxBounds={[[-55, -170], [70, 180]]} maxBoundsViscosity={1} worldCopyJump={false} zoomControl={false} className={`flight-map theme-${theme}`}>
+  return <MapContainer center={[18, 70]} zoom={3} minZoom={3} maxZoom={13} maxBounds={[[-60, -180], [75, 180]]} maxBoundsViscosity={1} worldCopyJump={false} zoomControl={false} className={`flight-map theme-${theme}`}>
     <TileLayer noWrap url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}" attribution="Tiles &copy; Esri" maxNativeZoom={16} /><ZoomControl position="bottomright" /><InitialFit flights={flights} /><Focus flight={selected} airport={airport} reset={reset} scenarioFlights={scenarioFlights} />
     {layers.routes && flights.filter((f) => isAirborne(f.flight_status)).map((f) => <Polyline key={f.flight_id} positions={f.operational_geometry.coordinates.map(latlng)} pathOptions={{ color: f.impacts.length ? "#d17056" : "#5586a9", weight: 1, opacity: f.impacts.length ? .45 : .18 }} />)}
     {layers.weather && state.weather.map((w) => <Polygon key={w.weather_id} positions={w.geometry.coordinates.map((r) => r.map(latlng))} pathOptions={{ color: "#ce9855", weight: 1, dashArray: "5 5", fillColor: "#bd8037", fillOpacity: .17 }}><Tooltip>{w.weather_type.replaceAll("_", " ")} · Severity {w.severity}/5 · DEMO</Tooltip></Polygon>)}
