@@ -155,7 +155,7 @@ export default function FlightPanel({
         {tab === "overview" ? (
           <>
             <figure className="aircraft-photo" style={{ backgroundImage: "url(/aircraft-fallback.webp)", backgroundSize: "cover", backgroundPosition: "center" }}>
-              {photo && !photoFailed ? <img decoding="async" fetchPriority="high" src={photo.url} alt={`${flight.manufacturer} ${flight.model}, ${flight.registration_number}`} onError={() => setPhotoFailed(true)} /> : <div className="photo-placeholder"><Plane size={28} /><span>{photoFailed ? "Photo unavailable" : "Loading model photo…"}</span></div>}
+              {photo && !photoFailed ? <img decoding="async" fetchPriority="high" src={photo.url} alt={`${flight.manufacturer} ${flight.model}, ${flight.registration_number}`} onError={() => setPhotoFailed(true)} /> : <img src="/aircraft-fallback.webp" alt={`${flight.manufacturer} ${flight.model} illustration — model photo unavailable`} />}
               <figcaption>
                 <span>{flight.manufacturer} {flight.model}</span>
                 {photo && !photoFailed && <small>{photo.source_url ? <a href={photo.source_url} target="_blank" rel="noreferrer">{photo.source}</a> : photo.source}{photo.credit ? ` · ${photo.credit}` : ""}{photo.license_url && <> · <a href={photo.license_url} target="_blank" rel="noreferrer">{photo.license}</a></>}</small>}

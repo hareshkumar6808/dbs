@@ -134,10 +134,12 @@ def _model_photo(manufacturer: str, model: str):
                 "source_url": None, "license": None, "license_url": None}
     filename, credit, license_name, license_url = photo
     source_url = f"https://commons.wikimedia.org/wiki/File:{quote(filename)}"
+    # Wikimedia rejects non-standard hotlinked widths; use the supported 500px step.
+    # https://www.mediawiki.org/wiki/Common_thumbnail_sizes
     digest = hashlib.md5(filename.replace(" ", "_").encode()).hexdigest()
     encoded = quote(filename.replace(" ", "_"))
     return {
-        "url": f"https://upload.wikimedia.org/wikipedia/commons/thumb/{digest[0]}/{digest[:2]}/{encoded}/640px-{encoded}",
+        "url": f"https://upload.wikimedia.org/wikipedia/commons/thumb/{digest[0]}/{digest[:2]}/{encoded}/500px-{encoded}",
         "source": "Wikimedia Commons",
         "source_url": source_url,
         "credit": credit,
