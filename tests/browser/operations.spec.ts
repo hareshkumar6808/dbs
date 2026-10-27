@@ -83,12 +83,7 @@ test("shared scenario persists across pages and resolves", async ({
     });
     await another.close();
   } finally {
-    await page
-      .getByRole("button", {
-        name: `Resolve scenario ${event.disruption_id}`,
-        exact: true,
-      })
-      .click();
+    await page.getByRole("button", { name: "END SIMULATION", exact: true }).click();
     await expect(
       page.getByRole("button", {
         name: `Resolve scenario ${event.disruption_id}`,
