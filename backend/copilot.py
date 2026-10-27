@@ -30,7 +30,8 @@ def query(db, question):
     }
     entity = next((key for key in entities if key in q), None)
     filters = ("risk", "weather", "affected", "closure", "delayed", "landed", "airborne", "en route", "boarding", "cancelled", "scheduled", "downstream", "cascade", "from ", " to ", " at ", " in ", " for ")
-    if counting and entity and not any(word in q for word in filters):
+    count_scope = q.replace("in the database", "").replace("in database", "")
+    if counting and entity and not any(word in count_scope for word in filters):
         table = entities[entity][0]
         count = one(db, f"SELECT count(*) AS n FROM {table}")["n"]
         return {"answer": f"The database contains {count} {entity} records (all retained records, including historical and scheduled data).", "items": []}
