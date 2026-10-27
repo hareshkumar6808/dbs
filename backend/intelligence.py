@@ -37,8 +37,10 @@ FLIGHTS_SQL = """SELECT f.*,al.airline_name,al.iata_code AS airline_code,a.regis
   """ + OPERATIONAL_ROUTE_LATERAL + """
   LEFT JOIN LATERAL(SELECT * FROM flight_position fp WHERE fp.flight_id=f.flight_id ORDER BY recorded_at DESC LIMIT 1) p ON true
   LEFT JOIN LATERAL(SELECT CASE WHEN count(*) > 1 THEN ST_MakeLine(fp.position ORDER BY fp.recorded_at) END AS geometry
-    FROM (SELECT position,recorded_at FROM flight_position WHERE flight_id=f.flight_id
-      ORDER BY recorded_at DESC LIMIT 240) fp) actual ON true
+    FROM (SELECT position,recorded_at FROM (
+      SELECT position,recorded_at,row_number() OVER(ORDER BY recorded_at) AS rn,count(*) OVER() AS total
+      FROM flight_position WHERE flight_id=f.flight_id) samples
+      WHERE rn=1 OR rn=total OR mod(rn-1,GREATEST(1,CEIL(total::numeric/240))::bigint)=0) fp) actual ON true
   LEFT JOIN LATERAL(SELECT max(we.severity) AS severity,
     bool_or(ST_Contains(we.affected_area_geometry,ST_Force2D(p.position))) AS inside,
     bool_or(ST_DWithin(we.affected_area_geometry::geography,ST_Force2D(p.position)::geography,150000)
@@ -244,3 +246,4 @@ def network(db):
         )["n"],
         "position_updated_at": one(db, "SELECT max(recorded_at) AS t FROM flight_position")["t"],
     }
+

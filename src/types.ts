@@ -14,6 +14,7 @@ export type Impact = {
   description: string;
 };
 export type Flight = {
+  photo?: { url: string; source: string; credit: string | null; source_url: string | null; license: string | null; license_url: string | null };
   flight_id: number;
   flight_number: string;
   airline_id: number;
@@ -183,3 +184,4 @@ export type CopilotResult = {
   } & Partial<Alternate>)[];
   examples?: string[];
 };
+

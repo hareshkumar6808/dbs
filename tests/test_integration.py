@@ -170,3 +170,20 @@ def test_invalid_requests(client):
         ).status_code
         == 404
     )
+
+
+
+def test_replay_sampling_preserves_departure_and_latest(client, db_engine):
+    state = client.get('/api/map/state').json()
+    flight = next(f for f in state['flights'] if f['flight_status'] == 'EN_ROUTE')
+    fid = flight['flight_id']
+    history = client.get(f'/api/flights/{fid}/positions?limit=5').json()
+    assert 2 <= len(history) <= 5
+    origin = next(a for a in state['airports'] if a['airport_id'] == flight['origin_airport_id'])
+    assert history[0]['position']['coordinates'][:2] == pytest.approx(origin['location']['coordinates'][:2], abs=.0001)
+    assert flight['actual_geometry']['coordinates'][0][:2] == pytest.approx(origin['location']['coordinates'][:2], abs=.0001)
+    with Session(db_engine) as db:
+        bounds = db.execute(text('SELECT min(recorded_at),max(recorded_at) FROM flight_position WHERE flight_id=:id'), {'id': fid}).one()
+    from datetime import datetime
+    assert datetime.fromisoformat(history[0]['recorded_at']) == bounds[0]
+    assert datetime.fromisoformat(history[-1]['recorded_at']) == bounds[1]

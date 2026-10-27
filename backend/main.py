@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hashlib
 from typing import Annotated
 import hmac
 import logging
@@ -133,8 +134,10 @@ def _model_photo(manufacturer: str, model: str):
                 "source_url": None, "license": None, "license_url": None}
     filename, credit, license_name, license_url = photo
     source_url = f"https://commons.wikimedia.org/wiki/File:{quote(filename)}"
+    digest = hashlib.md5(filename.replace(" ", "_").encode()).hexdigest()
+    encoded = quote(filename.replace(" ", "_"))
     return {
-        "url": f"https://commons.wikimedia.org/wiki/Special:Redirect/file/{quote(filename)}?width=1200",
+        "url": f"https://upload.wikimedia.org/wikipedia/commons/thumb/{digest[0]}/{digest[:2]}/{encoded}/640px-{encoded}",
         "source": "Wikimedia Commons",
         "source_url": source_url,
         "credit": credit,
@@ -216,8 +219,13 @@ def positions(flight_id: int, db: DB, limit: int = Query(600, ge=1, le=1500), be
         raise HTTPException(404, "Flight not found")
     return rows(
         db,
-        """SELECT * FROM(SELECT position_id,ST_AsGeoJSON(position)::json AS position,ground_speed,heading,recorded_at
-        FROM flight_position WHERE flight_id=:id AND recorded_at<:before ORDER BY recorded_at DESC LIMIT :limit) p ORDER BY recorded_at""",
+        """WITH ranked AS (
+          SELECT position_id,ST_AsGeoJSON(position)::json AS position,ground_speed,heading,recorded_at,
+            row_number() OVER(ORDER BY recorded_at) AS rn,count(*) OVER() AS total
+          FROM flight_position WHERE flight_id=:id AND recorded_at<:before
+        ) SELECT position_id,position,ground_speed,heading,recorded_at FROM ranked
+          WHERE rn=1 OR rn=total OR mod(rn-1,GREATEST(1,CEIL((total-1)::numeric/GREATEST(1,:limit-1)))::bigint)=0
+          ORDER BY recorded_at""",
         id=flight_id,
         before=before or datetime.now(timezone.utc),
         limit=limit,
@@ -370,6 +378,8 @@ def map_state(
         raise HTTPException(422, "Viewport bounds must increase from west to east and south to north")
     bbox = coordinates if all(value is not None for value in coordinates) else None
     fs = intelligence.flights(db, bbox=bbox)
+    for flight in fs:
+        flight["photo"] = _model_photo(flight["manufacturer"], flight["model"])
     return {
         "mode": settings().effective_mode,
         "source": "Synthetic persisted demonstration"
@@ -418,3 +428,4 @@ def public_openapi():
 @app.get("/api/docs", include_in_schema=False)
 def public_docs():
     return get_swagger_ui_html(openapi_url="/api/openapi.json", title="AeroPulse API")
+
