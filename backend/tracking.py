@@ -85,7 +85,7 @@ def tick(db):
     if settings().effective_mode != "demo":
         return {"updated": 0, "mode": settings().effective_mode}
     # All clients share a transaction lock and a two-second DB time bucket.
-    now = datetime.fromtimestamp(int(datetime.now(timezone.utc).timestamp() // 2) * 2, timezone.utc)
+    now = datetime.now(timezone.utc)
     # Scope the lock to this time bucket. If a serverless invocation is frozen
     # while holding an older transaction lock, later buckets can still advance.
     bucket = int(now.timestamp() // 2 % 2_147_483_647)
