@@ -344,7 +344,7 @@ def seed(db):
                     lon, lat = _interpolate(_waypoint_coordinates(a, b, route.route_id), sample_fraction)
                     altitude = 0 if status in {"BOARDING", "DELAYED", "TAXIING", "LANDED", "SCHEDULED", "CANCELLED"} else round(11200 * sin(3.14159 * sample_fraction))
                     speed = 0 if altitude == 0 else (35 if status == "TAXIING" else AIRCRAFT_TYPES[type_id - 1][5])
-                    recorded = now - timedelta(minutes=samples - 1 - sample)
+                    recorded = departure + (now - departure) * sample / (samples - 1) if samples > 1 else now
                     db.add(FlightPosition(position_id=position_id, flight_id=flight_id,
                                           position=f"SRID=4326;POINT Z({lon} {lat} {altitude})", ground_speed=speed,
                                           heading=heading, recorded_at=recorded))
@@ -384,3 +384,4 @@ def seed(db):
     db.commit()
     return {"seeded": True, "version": NETWORK_VERSION, "airports": len(AIRPORTS), "aircraft": len(planned),
             "flights": len(planned) * 5, "routes": len(route_map), "international_airports": len(international)}
+

@@ -84,14 +84,47 @@ def replenish(db, now):
 def tick(db):
     if settings().effective_mode != "demo":
         return {"updated": 0, "mode": settings().effective_mode}
-    # All clients share a transaction lock and a ten-second DB time bucket.
-    now = datetime.fromtimestamp(int(datetime.now(timezone.utc).timestamp() // 10) * 10, timezone.utc)
+    # All clients share a transaction lock and a two-second DB time bucket.
+    now = datetime.now(timezone.utc)
     # Scope the lock to this time bucket. If a serverless invocation is frozen
     # while holding an older transaction lock, later buckets can still advance.
-    bucket = int(now.timestamp() // 10 % 2_147_483_647)
+    bucket = int(now.timestamp() // 2 % 2_147_483_647)
     if not one(db, "SELECT pg_try_advisory_xact_lock(73002,:bucket) AS locked", bucket=bucket)["locked"]:
         return {"updated": 0, "mode": "demo"}
     replenish(db, now)
+    db.execute(text("""UPDATE weather_event SET start_time=:now,end_time=:now+interval '30 days'
+      WHERE weather_status='ACTIVE' AND end_time<:now AND weather_type IN
+      ('CONVECTIVE_STORM','MONSOON_CELL','THUNDERSTORM','CONVECTIVE_LINE','ARABIAN_SEA_STORM',
+       'BAY_OF_BENGAL_CELL','SOUTHEAST_ASIA_CELL','MEDITERRANEAN_FRONT')"""), {"now": now})
+    db.execute(text("""UPDATE airspace_zone SET valid_from=:now,valid_until=:now+interval '30 days'
+      WHERE zone_status='ACTIVE' AND valid_until<:now AND zone_name LIKE '%DEMO%'"""), {"now": now})
+    # Reconstruct missing demo history only up to the first existing observation.
+    # Live-provider observations are never inferred. Samples are persisted once.
+    db.execute(text("""WITH candidates AS (
+      SELECT f.*,operational.geometry AS geometry,
+        COALESCE(first.recorded_at,:now) AS first_time
+      FROM flight f JOIN route r USING(route_id)
+      """ + OPERATIONAL_ROUTE_LATERAL + """
+      LEFT JOIN LATERAL(SELECT position,recorded_at FROM flight_position WHERE flight_id=f.flight_id
+        ORDER BY recorded_at LIMIT 1) first ON true
+      WHERE f.scheduled_departure<=:now AND f.scheduled_arrival>:now-interval '90 minutes'
+        AND f.flight_status NOT IN ('CANCELLED','DELAYED','DIVERTED')
+        AND (first.recorded_at IS NULL OR first.recorded_at>f.scheduled_departure)
+    ), samples AS (
+      SELECT c.flight_id,c.geometry,stamp,
+        LEAST(1.0,GREATEST(0.0,EXTRACT(EPOCH FROM(stamp-c.scheduled_departure))/
+          NULLIF(EXTRACT(EPOCH FROM(c.scheduled_arrival-c.scheduled_departure)),0))) AS fraction
+      FROM candidates c,LATERAL generate_series(c.scheduled_departure,
+        LEAST(c.first_time-interval '1 microsecond',c.scheduled_arrival,:now),interval '1 minute') stamp
+    ) INSERT INTO flight_position(flight_id,position,ground_speed,heading,recorded_at)
+      SELECT flight_id,ST_SetSRID(ST_MakePoint(ST_X(p),ST_Y(p),
+        CASE WHEN fraction<=.04 OR fraction>=.97 THEN 0
+          ELSE 11200*LEAST(1,(fraction-.04)/.20,(.97-fraction)/.23) END),4326),
+        CASE WHEN fraction<=.04 OR fraction>=.97 THEN 24 ELSE 800 END,
+        COALESCE(degrees(ST_Azimuth(ST_LineInterpolatePoint(geometry,GREATEST(0,fraction-.003)),
+          ST_LineInterpolatePoint(geometry,LEAST(1,fraction+.003)))),0),stamp
+      FROM samples,LATERAL(SELECT ST_LineInterpolatePoint(geometry,fraction) AS p) point
+      ON CONFLICT(flight_id,recorded_at) DO NOTHING"""), {"now": now})
     # Keep the ground phase visible as the rolling timetable advances.
     db.execute(
         text("""UPDATE flight SET flight_status='BOARDING',last_updated=:now
@@ -155,3 +188,4 @@ def tick(db):
     )
     db.commit()
     return {"updated": updated, "mode": "demo", "recorded_at": now}
+

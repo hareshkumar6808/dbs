@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   ChevronDown,
@@ -32,6 +32,12 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const inFlight = useRef(false);
   const [selectedId, setSelectedId] = useState<number>();
+  const [isolateFlight, setIsolateFlight] = useState(false);
+  useEffect(() => {
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setIsolateFlight(false); };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, []);
   const [tool, setTool] = useState<"lab" | "copilot" | null>(null);
   const [search, setSearch] = useState("");
   const [airline, setAirline] = useState("");
@@ -39,8 +45,8 @@ export default function App() {
   const [riskFilter, setRiskFilter] = useState(false);
   const [affected, setAffected] = useState(false);
   const [layers, setLayers] = useState<Layers>({
-    weather: false,
-    airspace: false,
+    weather: true,
+    airspace: true,
     airports: true,
     routes: false,
     disruptions: true,
@@ -64,7 +70,7 @@ export default function App() {
     inFlight.current = true;
     try {
       const s = await api.state();
-      setState(s);
+      startTransition(() => setState(s));
       setError("");
     } catch (e) {
       setError((e as Error).message);
@@ -77,8 +83,10 @@ export default function App() {
     refresh();
     const id = setInterval(() => {
       if (!document.hidden) refresh();
-    }, 10000);
-    return () => clearInterval(id);
+    }, 2000);
+    const resume = () => { if (!document.hidden) refresh(); };
+    document.addEventListener("visibilitychange", resume);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", resume); };
   }, [refresh]);
   const selected = state?.flights.find((f) => f.flight_id === selectedId);
   const select = (id: number) => {
@@ -454,7 +462,7 @@ export default function App() {
           {state ? (
             <FlightMap
               state={state}
-              flights={mappedVisible}
+              flights={isolateFlight && selected ? [selected] : mappedVisible}
               selected={selected}
               onSelect={select}
               layers={layers}
@@ -587,9 +595,12 @@ export default function App() {
         {selected && !tool && (
           <FlightPanel
             key={selected.flight_id}
+            isolated={isolateFlight}
+            onToggleIsolation={() => setIsolateFlight((value) => !value)}
             flight={selected}
             onClose={() => {
               setSelectedId(undefined);
+              setIsolateFlight(false);
               setAlternates([]);
               setHistory([]);
               setReplay(undefined);
@@ -632,7 +643,7 @@ export default function App() {
         <span>
           {state?.graph ?? "PostGIS spatial intelligence"}
           <i />
-          10s refresh
+          2s refresh
           <i />
           All times UTC
         </span>
@@ -643,3 +654,4 @@ export default function App() {
     </div>
   );
 }
+

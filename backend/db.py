@@ -2,7 +2,7 @@ from functools import lru_cache
 from fastapi import HTTPException
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import NullPool
+
 from backend.config import settings
 
 
@@ -14,7 +14,7 @@ def engine():
         )
     return create_engine(
         settings().sqlalchemy_url,
-        poolclass=NullPool,
+        pool_size=3, max_overflow=2, pool_pre_ping=True, pool_recycle=300,
         connect_args={"connect_timeout": 8, "options": "-c statement_timeout=15000"},
         hide_parameters=True,
     )
@@ -32,3 +32,4 @@ def rows(db, sql, **params):
 def one(db, sql, **params):
     result = rows(db, sql, **params)
     return result[0] if result else None
+

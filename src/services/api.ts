@@ -13,6 +13,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const timeout = setTimeout(() => controller.abort(), 25000);
   try {
     const response = await fetch(`${base}/api${path}`, {
+      cache: "no-store",
       ...options,
       signal: controller.signal,
       headers: { "Content-Type": "application/json", ...options.headers },
@@ -32,9 +33,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     clearTimeout(timeout);
   }
 }
+type Photo = { url: string; source: string; credit: string | null; source_url: string | null; license: string | null; license_url: string | null };
+const photos = new Map<number, Promise<Photo>>();
 export const api = {
   state: () => request<MapState>("/map/state"),
-  aircraftPhoto: (id: number) => request<{ url: string; source: string; credit: string | null; source_url: string | null; license: string | null; license_url: string | null }>(`/aircraft/${id}/photo`),
+  aircraftPhoto: (id: number) => {
+    if (!photos.has(id)) photos.set(id, request<Photo>(`/aircraft/${id}/photo`).catch((error) => { photos.delete(id); throw error; }));
+    return photos.get(id)!;
+  },
   positions: (id: number) => request<Position[]>(`/flights/${id}/positions`),
   alternates: (id: number) => request<Alternate[]>(`/flights/${id}/alternates`),
   runways: (id: number) => request<Runway[]>(`/runways?airport_id=${id}`),
@@ -61,3 +67,4 @@ export const api = {
       body: JSON.stringify({ question }),
     }),
 };
+

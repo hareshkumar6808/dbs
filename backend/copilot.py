@@ -1,8 +1,11 @@
 import re
 from backend import intelligence
-from backend.db import rows
+from backend.db import rows, one
 
 EXAMPLES = [
+    "How many flights are in the database?",
+    "List airports in India",
+    "Show delayed flights",
     "Which flights are high risk?",
     "Which flights are affected by weather?",
     "Show flights affected by Chennai runway closure.",
@@ -13,7 +16,26 @@ EXAMPLES = [
 
 
 def query(db, question):
-    q = question.lower()
+    q = question.lower().strip()
+    # Fixed, parameterized read queries: user text is never executed as SQL.
+    counting = any(word in q for word in ("how many", "count", "total", "number of"))
+    if any(word in q for word in ("schema", "tables", "database structure")):
+        return {"answer": "AeroPulse stores airports, airlines, aircraft types, aircraft, routes, flights, flight legs, recorded positions, runways, weather events, airspace zones, disruption events and their impacts. Flights link an airline, aircraft and route; routes connect origin and destination airports. Positions retain each flight's timestamped track. Weather and airspace use PostGIS geometry. Ask for counts, flight status, an airport, airline or flight number.", "items": [], "examples": EXAMPLES}
+    entities = {
+        "airport": ("airport", "airport_name"), "airline": ("airline", "airline_name"),
+        "aircraft type": ("aircraft_type", "model"), "aircraft": ("aircraft", "registration_number"),
+        "route": ("route", "route_code"), "flight": ("flight", "flight_number"),
+        "runway": ("runway", "runway_identifier"), "position": ("flight_position", "position_id"),
+        "weather event": ("weather_event", "weather_type"), "disruption": ("disruption_event", "description"),
+    }
+    entity = next((key for key in entities if key in q), None)
+    filters = ("risk", "weather", "affected", "closure", "delayed", "landed", "airborne", "en route", "boarding", "cancelled", "scheduled", "downstream", "cascade", "from ", " to ", " at ", " in ", " for ")
+    count_scope = q.replace("in the database", "").replace("in database", "")
+    if counting and entity and not any(word in count_scope for word in filters):
+        table = entities[entity][0]
+        count = one(db, f"SELECT count(*) AS n FROM {table}")["n"]
+        return {"answer": f"The database contains {count} {entity} records (all retained records, including historical and scheduled data).", "items": []}
+
     airports = rows(db, "SELECT airport_id,iata_code,city FROM airport")
     airport = next(
         (
@@ -23,6 +45,16 @@ def query(db, question):
         ),
         None,
     )
+    if entity in ("airport", "airline", "aircraft type", "aircraft", "runway") and not any(word in q for word in ("flight", "alternate", "divert", "closure", "affected", "risk")):
+        table, label = entities[entity]
+        result = rows(db, f"SELECT * FROM {table} ORDER BY {label}")
+        if entity == "airport":
+            if airport:
+                result = [a for a in result if a["airport_id"] == airport["airport_id"]]
+            elif "india" in q or "indian" in q:
+                result = [a for a in result if a["country"] == "India"]
+        labels = [str(item[label]) for item in result]
+        return {"answer": f"{len(result)} matching {entity} records: " + "; ".join(labels[:100]) + (" (first 100 shown)" if len(labels) > 100 else ""), "items": []}
     if "alternate" in q or "divert" in q:
         if not airport:
             return {"answer": "Name an airport or city to rank nearby alternates.", "items": [], "examples": EXAMPLES}
@@ -65,11 +97,44 @@ def query(db, question):
         result = [f for f in fs if f["flight_id"] in ids]
         explanation = f"flights affected by active disruptions at {airport['iata_code']}"
     else:
-        return {
-            "answer": "I can query supported operational questions using this database. Try one of the examples; I cannot answer arbitrary aviation questions.",
-            "items": [],
-            "examples": EXAMPLES,
-        }
+        result = fs
+        explanation = "flights in the current operational window"
+        matched = False
+        statuses = {"delayed": "DELAYED", "landed": "LANDED", "cancelled": "CANCELLED",
+                    "canceled": "CANCELLED", "boarding": "BOARDING", "scheduled": "SCHEDULED",
+                    "taxiing": "TAXIING", "approaching": "APPROACHING", "en route": "EN_ROUTE"}
+        for word, status in statuses.items():
+            if word in q:
+                result = [f for f in result if f["flight_status"] == status or
+                          (status == "DELAYED" and f["estimated_delay_minutes"] > 0)]
+                explanation = word + " " + explanation
+                matched = True
+                break
+        if "airborne" in q or "flying" in q:
+            result = [f for f in result if f["flight_status"] in ("EN_ROUTE", "APPROACHING")]
+            matched = True
+        if airport:
+            field = "origin_airport_id" if re.search(r"\b(from|departing)\b", q) else "destination_airport_id" if re.search(r"\b(to|arriving)\b", q) else None
+            result = [f for f in result if f.get(field) == airport["airport_id"]] if field else [f for f in result if airport["airport_id"] in (f["origin_airport_id"], f["destination_airport_id"])]
+            explanation += f" involving {airport['iata_code']}"
+            matched = True
+        airlines = rows(db, "SELECT airline_id,airline_name,iata_code FROM airline")
+        airline = next((a for a in airlines if a["airline_name"].lower() in q or re.search(r"\b" + re.escape(a["iata_code"].lower()) + r"\b", q)), None)
+        if airline:
+            result = [f for f in result if f["airline_id"] == airline["airline_id"]]
+            explanation += f" operated by {airline['airline_name']}"
+            matched = True
+        flight_number = re.search(r"\b[a-z]{2}\s?\d{2,5}\b", q)
+        if flight_number:
+            number = flight_number.group().replace(" ", "").upper()
+            result = [f for f in result if f["flight_number"].upper() == number]
+            explanation = f"matching {number} in the current operational window"
+            matched = True
+        if "affected" in q:
+            result = [f for f in result if f["impacts"]]
+            matched = True
+        if not matched and not any(word in q for word in ("flight", "network", "summary", "overview")):
+            return {"answer": "I cannot answer that question from the supported database queries. Ask about record counts, tables, airports, airlines, aircraft, flight numbers, flight status, weather, risk, alternates or disruptions.", "items": [], "examples": EXAMPLES}
     return {
         "answer": f"{len(result)} {explanation}.",
         "kind": "flights",
@@ -84,3 +149,4 @@ def query(db, question):
             for f in result
         ],
     }
+

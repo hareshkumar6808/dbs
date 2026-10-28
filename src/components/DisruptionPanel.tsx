@@ -90,6 +90,23 @@ export default function DisruptionPanel({
       setBusy(false);
     }
   }
+  async function endSimulation() {
+    setBusy(true);
+    setError("");
+    try {
+      for (const scenario of activeScenarios) {
+        await api.resolve(scenario.disruption_id);
+        setResolvedIds((ids) => [...ids, scenario.disruption_id]);
+      }
+      setResult(undefined);
+      onAlternates([]);
+      onFocus([]);
+      await onChange();
+    } catch (e) {
+      setError((e as Error).message);
+      await onChange();
+    } finally { setBusy(false); }
+  }
   return (
     <aside className="tool-panel panel" aria-label="Disruption simulator">
       <div className="panel-heading">
@@ -197,6 +214,9 @@ export default function DisruptionPanel({
             <ArrowRight size={15} />
           </button>
         </div>
+        <button className="wide-button" disabled={busy || state.mode !== "demo" || !activeScenarios.length} onClick={endSimulation}>
+          <RotateCcw size={15} /> END SIMULATION
+        </button>
         {error && (
           <p className="inline-error" role="alert">
             {error}
@@ -309,3 +329,4 @@ export default function DisruptionPanel({
     </aside>
   );
 }
+

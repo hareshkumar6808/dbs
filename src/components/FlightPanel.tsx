@@ -24,6 +24,8 @@ const number = (value: number | null, unit: string) =>
 type Photo = { url: string; source: string; credit: string | null; source_url: string | null; license: string | null; license_url: string | null };
 export default function FlightPanel({
   flight,
+  isolated,
+  onToggleIsolation,
   onClose,
   onAlternates,
   onHistory,
@@ -33,6 +35,8 @@ export default function FlightPanel({
   setReplayIndex,
 }: {
   flight: Flight;
+  isolated: boolean;
+  onToggleIsolation: () => void;
   onClose: () => void;
   onAlternates: (a: Alternate[]) => void;
   onHistory: (p: Position[]) => void;
@@ -46,16 +50,18 @@ export default function FlightPanel({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"overview" | "intelligence">("overview");
-  const [photo, setPhoto] = useState<Photo | null>(null);
+  const [photo, setPhoto] = useState<Photo | null>(flight.photo ?? null);
   const [photoFailed, setPhotoFailed] = useState(false);
   useEffect(() => {
     setAlternates([]);
     setPaths([]);
     setError("");
-    setPhoto(null);
+    setPhoto(flight.photo ?? null);
     setPhotoFailed(false);
-    api.aircraftPhoto(flight.aircraft_id).then(setPhoto).catch(() => setPhotoFailed(true));
-  }, [flight.flight_id, flight.aircraft_id]);
+    let alive = true;
+    if (!flight.photo) api.aircraftPhoto(flight.aircraft_id).then((value) => { if (alive) setPhoto(value); }).catch(() => { if (alive) setPhotoFailed(true); });
+    return () => { alive = false; };
+  }, [flight.flight_id, flight.aircraft_id, flight.photo?.url]); // eslint-disable-line react-hooks/exhaustive-deps
   async function load(kind: "alternates" | "history" | "cascade") {
     setBusy(kind);
     setError("");
@@ -72,6 +78,8 @@ export default function FlightPanel({
       if (kind === "history") {
         const p = await api.positions(flight.flight_id);
         onHistory(p);
+        setReplayIndex(0);
+        onReplay(p[0]);
         if (!p.length) setError("No recorded positions for this flight yet.");
       }
       if (kind === "cascade") {
@@ -125,6 +133,9 @@ export default function FlightPanel({
           <span>{flight.destination_city}</span>
         </div>
       </div>
+      <button className="wide-button" aria-pressed={isolated} onClick={onToggleIsolation}>
+        <Plane size={15} />{isolated ? "Show all flights (Esc)" : "Show only this flight"}
+      </button>
       <div className="flight-tabs">
         <button
           className={tab === "overview" ? "active" : ""}
@@ -143,8 +154,8 @@ export default function FlightPanel({
       <div className="panel-scroll">
         {tab === "overview" ? (
           <>
-            <figure className="aircraft-photo">
-              {photo && !photoFailed ? <img src={photo.url} alt={`${flight.manufacturer} ${flight.model}, ${flight.registration_number}`} onError={() => setPhotoFailed(true)} /> : <div className="photo-placeholder"><Plane size={28} /><span>{photoFailed ? "Photo unavailable" : "Loading model photo…"}</span></div>}
+            <figure className="aircraft-photo" style={{ backgroundImage: "url(/aircraft-fallback.webp)", backgroundSize: "cover", backgroundPosition: "center" }}>
+              {photo && !photoFailed ? <img decoding="async" fetchPriority="high" src={photo.url} alt={`${flight.manufacturer} ${flight.model}, ${flight.registration_number}`} onError={() => setPhotoFailed(true)} /> : <img src="/aircraft-fallback.webp" alt={`${flight.manufacturer} ${flight.model} illustration — model photo unavailable`} />}
               <figcaption>
                 <span>{flight.manufacturer} {flight.model}</span>
                 {photo && !photoFailed && <small>{photo.source_url ? <a href={photo.source_url} target="_blank" rel="noreferrer">{photo.source}</a> : photo.source}{photo.credit ? ` · ${photo.credit}` : ""}{photo.license_url && <> · <a href={photo.license_url} target="_blank" rel="noreferrer">{photo.license}</a></>}</small>}
@@ -388,3 +399,4 @@ export default function FlightPanel({
     </aside>
   );
 }
+

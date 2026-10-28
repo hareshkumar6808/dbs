@@ -83,12 +83,7 @@ test("shared scenario persists across pages and resolves", async ({
     });
     await another.close();
   } finally {
-    await page
-      .getByRole("button", {
-        name: `Resolve scenario ${event.disruption_id}`,
-        exact: true,
-      })
-      .click();
+    await page.getByRole("button", { name: "END SIMULATION", exact: true }).click();
     await expect(
       page.getByRole("button", {
         name: `Resolve scenario ${event.disruption_id}`,
@@ -130,4 +125,20 @@ test("copilot returns database results and mobile controls remain usable", async
       .locator("body")
       .evaluate((el) => el.scrollWidth <= window.innerWidth),
   ).toBeTruthy();
+});
+
+
+test("selected flight isolation restores traffic with the toggle and Escape", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.locator(".aircraft-icon").first()).toBeVisible({ timeout: 30000 });
+  await page.getByRole("button", { name: "Flights", exact: true }).click();
+  await page.getByTestId("flight-row").first().click();
+  await page.getByRole("button", { name: "Show only this flight" }).click();
+  await expect(page.locator(".aircraft-icon")).toHaveCount(1);
+  await page.getByRole("button", { name: "Show all flights (Esc)" }).click();
+  await expect.poll(() => page.locator(".aircraft-icon").count()).toBeGreaterThan(1);
+  await page.getByRole("button", { name: "Show only this flight" }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "Show only this flight" })).toHaveAttribute("aria-pressed", "false");
+  await expect.poll(() => page.locator(".aircraft-icon").count()).toBeGreaterThan(1);
 });
