@@ -92,7 +92,7 @@ def query(db, question):
                 item_label = item["description"]
             items.append({"label": item_label, "detail": detail})
         return {
-            "answer": f"{len(result)} matching {entity} records" + (" (first 100 shown)" if len(result) > 100 else ""),
+            "answer": f"{len(result)} matching {entity} records: " + "; ".join(labels[:100]) + (" (first 100 shown)" if len(result) > 100 else ""),
             "items": items,
         }
     if "alternate" in q or "divert" in q:
