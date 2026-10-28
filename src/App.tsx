@@ -529,12 +529,12 @@ export default function App() {
               </button>
               <button
                 className={scenarioExamplesOpen ? "active" : ""}
-                title="Example scenario"
-                aria-label="Example scenario"
+                title="Scenario examples"
+                aria-label="Scenario examples"
                 onClick={() => setScenarioExamplesOpen(!scenarioExamplesOpen)}
               >
                 <FlaskConical size={15} />
-                <span>Example scenario</span>
+                <span>Scenario examples</span>
               </button>
             </div>
           </div>
