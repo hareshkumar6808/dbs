@@ -18,8 +18,8 @@ const isAirborne = (status: string) => ["EN_ROUTE", "APPROACHING"].includes(stat
 function Focus({ flight, airport, reset, scenarioFlights }: { flight?: Flight; airport?: Airport; reset: number; scenarioFlights: Flight[] }) {
   const map = useMap();
   const lastScenario = useRef("");
-  useEffect(() => { if (flight) map.fitBounds(flight.operational_geometry.coordinates.map(latlng), { padding: [75, 75], maxZoom: 7, animate: true }); }, [flight?.flight_id, map]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (airport) map.flyTo(latlng(airport.location.coordinates), 7, { duration: .8 }); }, [airport, map]);
+  useEffect(() => { if (flight) map.fitBounds(flight.operational_geometry.coordinates.map(latlng), { padding: [75, 75], maxZoom: 7, animate: false }); }, [flight?.flight_id, map]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (airport) map.setView(latlng(airport.location.coordinates), 7, { animate: false }); }, [airport, map]);
   useEffect(() => { if (reset) map.setView([22, 75], 3); }, [reset, map]);
   useEffect(() => {
     const key = scenarioFlights.map((item) => item.flight_id).join(",");
@@ -27,7 +27,7 @@ function Focus({ flight, airport, reset, scenarioFlights }: { flight?: Flight; a
     if (key === lastScenario.current) return;
     lastScenario.current = key;
     const points = scenarioFlights.flatMap((item) => item.operational_geometry.coordinates.map(latlng));
-    if (points.length) map.fitBounds(points, { padding: [90, 90], maxZoom: 6, animate: true });
+    if (points.length) map.fitBounds(points, { padding: [90, 90], maxZoom: 6, animate: false });
   }, [scenarioFlights, map]);
   return null;
 }

@@ -45,16 +45,56 @@ def query(db, question):
         ),
         None,
     )
-    if entity in ("airport", "airline", "aircraft type", "aircraft", "runway") and not any(word in q for word in ("flight", "alternate", "divert", "closure", "affected", "risk")):
-        table, label = entities[entity]
-        result = rows(db, f"SELECT * FROM {table} ORDER BY {label}")
+    if entity in ("airport", "airline", "aircraft type", "aircraft", "route", "runway", "weather event", "disruption") and not any(word in q for word in ("flight", "alternate", "divert", "closure", "affected", "risk", "restricted", "airspace")):
+        list_queries = {
+            "airport": ("SELECT airport_id,iata_code,airport_name,city,country FROM airport ORDER BY airport_name", "airport_name"),
+            "airline": ("SELECT iata_code,airline_name,country FROM airline ORDER BY airline_name", "airline_name"),
+            "aircraft type": ("SELECT manufacturer,model,aircraft_category FROM aircraft_type ORDER BY manufacturer,model", "model"),
+            "aircraft": ("SELECT registration_number,aircraft_type_id,aircraft_status FROM aircraft ORDER BY registration_number", "registration_number"),
+            "route": ("SELECT route_code,origin_airport_id,destination_airport_id,distance_km,route_status FROM route ORDER BY route_code", "route_code"),
+            "runway": ("SELECT runway_identifier,airport_id,length_m,runway_status FROM runway ORDER BY runway_identifier", "runway_identifier"),
+            "weather event": ("SELECT weather_type,severity,weather_status FROM weather_event ORDER BY weather_type", "weather_type"),
+            "disruption": ("SELECT description,disruption_type,severity,disruption_status FROM disruption_event ORDER BY description", "description"),
+        }
+        sql, label = list_queries[entity]
+        result = rows(db, sql)
         if entity == "airport":
             if airport:
                 result = [a for a in result if a["airport_id"] == airport["airport_id"]]
             elif "india" in q or "indian" in q:
                 result = [a for a in result if a["country"] == "India"]
         labels = [str(item[label]) for item in result]
-        return {"answer": f"{len(result)} matching {entity} records: " + "; ".join(labels[:100]) + (" (first 100 shown)" if len(labels) > 100 else ""), "items": []}
+        items = []
+        for item in result[:100]:
+            if entity == "airport":
+                detail = f"{item['city']}, {item['country']}"
+                item_label = item["iata_code"]
+            elif entity == "airline":
+                detail = item["country"]
+                item_label = f"{item['iata_code']} · {item['airline_name']}"
+            elif entity == "aircraft type":
+                detail = item["aircraft_category"]
+                item_label = f"{item['manufacturer']} {item['model']}"
+            elif entity == "aircraft":
+                detail = f"Type {item['aircraft_type_id']} · {item['aircraft_status']}"
+                item_label = item["registration_number"]
+            elif entity == "route":
+                detail = f"Airport {item['origin_airport_id']} to {item['destination_airport_id']} · {item['distance_km']:.0f} km · {item['route_status']}"
+                item_label = item["route_code"]
+            elif entity == "runway":
+                detail = f"Airport {item['airport_id']} · {item['length_m']:.0f} m · {item['runway_status']}"
+                item_label = item["runway_identifier"]
+            elif entity == "weather event":
+                detail = f"Severity {item['severity']} · {item['weather_status']}"
+                item_label = item["weather_type"]
+            else:
+                detail = f"{item['disruption_type']} · severity {item['severity']} · {item['disruption_status']}"
+                item_label = item["description"]
+            items.append({"label": item_label, "detail": detail})
+        return {
+            "answer": f"{len(result)} matching {entity} records" + (" (first 100 shown)" if len(result) > 100 else ""),
+            "items": items,
+        }
     if "alternate" in q or "divert" in q:
         if not airport:
             return {"answer": "Name an airport or city to rank nearby alternates.", "items": [], "examples": EXAMPLES}

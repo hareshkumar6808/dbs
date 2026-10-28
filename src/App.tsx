@@ -14,6 +14,7 @@ import {
   Search,
   SlidersHorizontal,
   Sun,
+  WifiOff,
   X,
 } from "lucide-react";
 import FlightMap from "./components/FlightMap";
@@ -180,11 +181,11 @@ export default function App() {
       <header className="topbar">
         <a className="brand" href="/" aria-label="AeroPulse home">
           <div className="brand-symbol">
-            <Radar size={25} />
+            <Plane size={22} />
           </div>
           <span>
             Aero<span>Pulse</span>
-            <small>AVIATION NETWORK INTELLIGENCE</small>
+            <small>Flights, routes and disruptions</small>
           </span>
         </a>
         <nav>
@@ -202,9 +203,6 @@ export default function App() {
           </button>
         </nav>
         <div className="header-status">
-          <span className="demo-badge">
-            {state?.mode === "live" ? "LIVE PROVIDER" : "DEMO NETWORK"}
-          </span>
           <span className="utc-clock">
             {state ? time(state.generated_at) : "--:--"} <small>UTC</small>
           </span>
@@ -284,7 +282,7 @@ export default function App() {
             <Search size={15} />
             <input
               aria-label="Search flights or airports"
-              placeholder="Flight, airport or city"
+              placeholder="Search flights, airports or cities"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
@@ -446,7 +444,6 @@ export default function App() {
             )}
           </div>
           <div className="sidebar-footer">
-            <span className={`connection-dot ${error ? "disconnected" : ""}`} />
             <span>
               {error ? "Connection interrupted" : "Shared database connection"}
             </span>
@@ -478,7 +475,7 @@ export default function App() {
             />
           ) : (
             <div className="map-placeholder">
-              <Radar size={60} />
+              <WifiOff size={52} strokeWidth={1.7} />
               <h2>
                 {loading
                   ? "Establishing network connection"
@@ -499,7 +496,6 @@ export default function App() {
           )}
           <div className="map-topline">
             <div className="map-label">
-              <span className="connection-dot" />
               <span>{replay ? "HISTORICAL REPLAY" : "AIRSPACE MONITOR"}</span>
               <b>{replay ? time(replay.recorded_at) + " UTC" : "INDIA"}</b>
             </div>
@@ -538,6 +534,43 @@ export default function App() {
               </button>
             </div>
           </div>
+          <nav className={`map-action-menu ${tool ? "panel-visible" : ""}`} aria-label="Quick access">
+            <div className="map-action-heading">
+              <strong>Tools</strong>
+            </div>
+            <button
+              className={sidebarOpen ? "active" : ""}
+              aria-label="Flights and search"
+              aria-expanded={sidebarOpen}
+              onClick={() => {
+                setTool(null);
+                setSidebarOpen((value) => !value);
+              }}
+            >
+              <Search size={18} /><span>Flights &amp; search</span>
+            </button>
+            <button
+              className={tool === "lab" ? "active" : ""}
+              aria-label="Disruption lab"
+              onClick={() => openTool("lab")}
+            >
+              <FlaskConical size={18} /><span>Disruption Lab</span>
+            </button>
+            <button
+              className={tool === "copilot" ? "active" : ""}
+              aria-label="Operations copilot"
+              onClick={() => openTool("copilot")}
+            >
+              <MessageSquare size={18} /><span>Ask Copilot</span>
+            </button>
+            <button
+              className={layersOpen ? "active" : ""}
+              aria-label="Map layers"
+              onClick={() => setLayersOpen((value) => !value)}
+            >
+              <LayersIcon size={18} /><span>Map layers</span>
+            </button>
+          </nav>
           {layersOpen && (
             <div className="layer-menu panel">
               <h3>MAP LAYERS</h3>
@@ -650,7 +683,7 @@ export default function App() {
       </div>
       <footer className="system-bar">
         <span>
-          <span className="connection-dot" /> AEROPULSE OPERATIONS
+          AEROPULSE OPERATIONS
         </span>
         <span>
           {state?.graph ?? "PostGIS spatial intelligence"}
@@ -659,9 +692,7 @@ export default function App() {
           <i />
           All times UTC
         </span>
-        <span>
-          India-linked demonstration <span className="version">v2.0</span>
-        </span>
+        <span>Airspace overview</span>
       </footer>
     </div>
   );

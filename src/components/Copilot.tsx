@@ -105,6 +105,11 @@ export default function Copilot({
                       {item.risk?.score}
                     </b>
                   </button>
+                ) : item.label ? (
+                  <>
+                    <strong>{item.label}</strong>
+                    {item.detail && <span>{item.detail}</span>}
+                  </>
                 ) : (
                   <>
                     <strong>{item.iata_code ?? item.route_code}</strong>

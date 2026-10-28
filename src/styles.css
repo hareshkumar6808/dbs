@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;450;500;550;600;650;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;450;500;550;600;650;700&display=swap");
 :root {
   font-family: "IBM Plex Sans", system-ui, sans-serif;
   color: #dae2e9;
@@ -11,7 +11,7 @@
   --blue: #84b6d8;
   --orange: #e8ad65;
   --red: #e78270;
-  --mono: "IBM Plex Mono", monospace;
+  --mono: "IBM Plex Sans", system-ui, sans-serif;
   color-scheme: dark;
 }
 [data-theme="light"] {
@@ -126,8 +126,8 @@ button {
 }
 .brand small {
   display: block;
-  font: 8px var(--mono);
-  letter-spacing: 1.4px;
+  font-size: 10px;
+  letter-spacing: 0.1px;
   color: #80919e;
   margin-top: 1px;
 }
@@ -135,6 +135,8 @@ button {
   display: flex;
   gap: 26px;
   align-self: stretch;
+  padding-right: 26px;
+  border-right: 1px solid var(--border);
 }
 .topbar nav button {
   font-size: 12px;
@@ -187,8 +189,11 @@ button {
   display: flex;
   min-height: 0;
   position: relative;
+  overflow: hidden;
 }
 .traffic-sidebar {
+  position: absolute;
+  inset: 0 auto 0 0;
   width: 302px;
   min-width: 302px;
   background: #141c24;
@@ -196,7 +201,7 @@ button {
   display: flex;
   flex-direction: column;
   z-index: 800;
-  transition: width 0.2s ease, min-width 0.2s ease, transform 0.2s ease;
+  transition: color 0.15s, background-color 0.15s;
 }
 .traffic-sidebar.collapsed {
   width: 0;
@@ -305,7 +310,7 @@ button {
   border: 1px solid #34414d;
   margin: 0 19px;
   border-radius: 3px;
-  padding: 9px 10px;
+  padding: 11px 12px;
   color: #7d909f;
 }
 .search-wrap input {
@@ -313,7 +318,7 @@ button {
   border: 0;
   background: none;
   color: #dce6ed;
-  font-size: 11px;
+  font-size: 13px;
   outline: none;
 }
 .search-wrap input::placeholder {
@@ -517,21 +522,9 @@ button {
 .sidebar-footer button {
   margin-left: auto;
 }
-.connection-dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #85acc7;
-  flex-shrink: 0;
-}
-.connection-dot.disconnected {
-  background: #d88773;
-}
 .map-stage {
-  flex: 1;
-  min-width: 0;
-  position: relative;
+  position: absolute;
+  inset: 0;
   background: #141a1e;
 }
 .flight-map {
@@ -590,7 +583,6 @@ button {
   gap: 8px;
   font: 8px var(--mono);
   letter-spacing: 0.7px;
-  box-shadow: 0 2px 9px #0002;
 }
 .map-label b {
   border-left: 1px solid #3f4a53;
@@ -619,12 +611,45 @@ button {
   background: #2b4150;
 }
 .map-toolbar .mobile-list-toggle {
-  display: none;
+  display: flex;
 }
+.map-action-menu {
+  position: absolute;
+  z-index: 600;
+  top: 80px;
+  bottom: 27px;
+  right: 18px;
+  width: 190px;
+  padding: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: #111a22;
+  border: 1px solid #35434e;
+  border-radius: 5px 0 0 0;
+}
+.map-action-menu.panel-visible { right: 356px; }
+.map-action-heading { padding: 4px 6px 8px; }
+.map-action-heading strong { display: block; font-size: 13px; font-weight: 600; }
+.map-action-heading span { display: block; margin-top: 3px; color: #91a0aa; font-size: 10px; }
+.map-action-menu button {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: #d2dce3;
+  text-align: left;
+  font-size: 13px;
+}
+.map-action-menu button svg { color: #9fc7df; }
+.map-action-menu button:hover,
+.map-action-menu button.active { background: #202f39; border-color: #415460; }
 .panel {
   background: #141e27;
   border: 1px solid #354550;
-  box-shadow: 0 7px 30px #0003;
   border-radius: 4px;
 }
 .layer-menu {
@@ -669,17 +694,14 @@ button {
 .aircraft-icon svg {
   width: 19px;
   height: 19px;
-  transition: transform 1s;
 }
 .aircraft-silhouette {
   transform: rotate(var(--heading));
   transform-origin: 50% 50%;
-  transition: transform 1.8s ease-in-out;
 }
 .aircraft-icon.selected {
   border: 1px solid #bcd7eb80;
   border-radius: 50%;
-  outline: 5px solid #9fcdf217;
 }
 .ground-marker {
   width: 12px;
@@ -702,7 +724,6 @@ button {
   color: #93a6b5;
   font: 8px var(--mono);
   padding: 2px;
-  text-shadow: 0 1px 2px #000;
 }
 .airport-label:before {
   display: none;
@@ -758,25 +779,26 @@ button {
 }
 .map-legend {
   display: flex;
-  gap: 13px;
-  background: #111b23e8;
-  padding: 8px 10px;
-  border: 1px solid #2d3c47;
-  border-radius: 3px;
-  font-size: 8px;
+  gap: 7px;
   color: #9badba;
 }
 .map-legend span {
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 7px;
   white-space: nowrap;
+  min-height: 30px;
+  padding: 0 10px;
+  background: #111b23e8;
+  border: 1px solid #2d3c47;
+  border-radius: 3px;
+  font-size: 10px;
 }
 .map-legend i {
-  width: 5px;
-  height: 5px;
+  width: 10px;
+  height: 10px;
   display: inline-block;
-  border-radius: 50%;
+  border-radius: 2px;
 }
 .map-legend .planned-line,
 .map-legend .actual-line,
@@ -807,7 +829,6 @@ button {
   color: #8ea0ad;
   letter-spacing: 1px;
   text-align: right;
-  text-shadow: 0 1px 2px #000;
 }
 .data-note span {
   display: block;
@@ -873,7 +894,7 @@ button {
   text-align: center;
   padding: 40px;
   gap: 18px;
-  background: radial-gradient(ellipse at center, #1b2a35 0, #121b22 75%);
+  background: #141e27;
 }
 .map-placeholder > svg {
   color: #4e728e;
@@ -925,6 +946,8 @@ button {
 }
 .flight-panel,
 .tool-panel {
+  position: absolute;
+  inset: 0 0 0 auto;
   width: 342px;
   min-width: 342px;
   border: 0;
@@ -1087,7 +1110,7 @@ button {
   justify-items: center;
   gap: 9px;
   color: #7890a0;
-  background: linear-gradient(135deg, #111b23, #172630);
+  background: #17232d;
   font: 8px var(--mono);
   letter-spacing: .08em;
   text-transform: uppercase;
@@ -1099,7 +1122,7 @@ button {
   justify-content: space-between;
   align-items: end;
   padding: 18px 9px 7px;
-  background: linear-gradient(transparent, #071019db);
+  background: #071019db;
   color: #e4edf3;
   font: 8px var(--mono);
   letter-spacing: .5px;
@@ -1675,14 +1698,7 @@ button {
   text-decoration: underline;
   color: #9bbbd2;
 }
-.spin {
-  animation: spin 4s linear infinite;
-}
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+.spin { animation: none; }
 .airport-results {
   margin: 5px 19px;
   border: 1px solid #354f62;
@@ -1731,6 +1747,7 @@ button {
     width: 384px;
     min-width: 384px;
   }
+  .map-action-menu.panel-visible { right: 398px; }
   .topbar {
     gap: 65px;
   }
@@ -1805,7 +1822,7 @@ button {
     gap: 20px;
   }
   .copilot-toggle span {
-    display: none;
+    display: inline;
   }
   .topbar nav button {
     font-size: 11px;
@@ -1820,7 +1837,7 @@ button {
     top: 0;
     bottom: 0;
     width: 345px;
-    box-shadow: -15px 0 40px #0003;
+    box-shadow: none;
     z-index: 1000;
   }
   .map-brief {
@@ -1851,11 +1868,12 @@ button {
   }
   .brand small {
     font-size: 6px;
-    letter-spacing: 1px;
+    letter-spacing: 0;
   }
   .topbar nav {
     margin-left: auto;
     gap: 8px;
+    padding-right: 8px;
   }
   .topbar nav button {
     font-size: 0;
@@ -1870,6 +1888,7 @@ button {
     margin: 0;
     gap: 9px;
   }
+  .copilot-toggle span { display: none; }
   .demo-badge {
     font-size: 6px;
     padding: 4px;
@@ -1885,7 +1904,7 @@ button {
     width: 290px;
     min-width: 290px;
     z-index: 950;
-    box-shadow: 8px 0 40px #0005;
+    box-shadow: none;
   }
   .traffic-sidebar.open {
     display: flex;
@@ -1947,6 +1966,7 @@ button {
     width: min(360px, 100%);
     min-width: 0;
   }
+  .map-action-menu.panel-visible { right: 357px; }
   .layer-menu {
     right: 12px;
     top: 55px;
@@ -1955,6 +1975,12 @@ button {
     right: 12px;
     top: 55px;
   }
+  .map-action-menu {
+    top: 62px;
+    right: 10px;
+    width: 168px;
+  }
+  .map-action-menu.panel-visible { display: none; }
   .map-error {
     left: 13px;
     right: 12px;
@@ -1993,6 +2019,14 @@ button {
   color: #17212b;
   border-color: #d7dfe4;
 }
+[data-theme="light"] .map-action-menu {
+  background: #fff;
+  color: #17212b;
+  border-color: #d7dfe4;
+}
+[data-theme="light"] .map-action-menu button { color: #263946; }
+[data-theme="light"] .map-action-menu button:hover,
+[data-theme="light"] .map-action-menu button.active { background: #edf3f6; border-color: #d1dce2; }
 [data-theme="light"] .map-stage,
 [data-theme="light"] .flight-map {
   background: #e8ecef !important;
@@ -2027,7 +2061,10 @@ button {
   background: #fffffff2;
   color: #28404f;
   border-color: #cbd7dd;
-  box-shadow: 0 2px 10px #44607022;
+}
+[data-theme="light"] .map-legend span {
+  background: #fffffff2;
+  border-color: #cbd7dd;
 }
 [data-theme="light"] .leaflet-control-zoom a,
 [data-theme="light"] .leaflet-control-attribution {
@@ -2036,7 +2073,6 @@ button {
 }
 [data-theme="light"] .airport-label.leaflet-tooltip {
   color: #314d5c;
-  text-shadow: 0 1px 1px #fff;
 }
 [data-theme="light"] .flight-tooltip.leaflet-tooltip,
 [data-theme="light"] .leaflet-popup-content-wrapper,
