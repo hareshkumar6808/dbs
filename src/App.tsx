@@ -551,7 +551,7 @@ export default function App() {
             </button>
             <button
               className={tool === "lab" ? "active" : ""}
-              aria-label="Disruption lab"
+              aria-label="Open Disruption Lab"
               onClick={() => openTool("lab")}
             >
               <FlaskConical size={18} /><span>Disruption Lab</span>
