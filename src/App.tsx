@@ -558,7 +558,7 @@ export default function App() {
             </button>
             <button
               className={tool === "copilot" ? "active" : ""}
-              aria-label="Operations copilot"
+              aria-label="Ask Copilot"
               onClick={() => openTool("copilot")}
             >
               <MessageSquare size={18} /><span>Ask Copilot</span>
