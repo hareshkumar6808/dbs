@@ -651,10 +651,17 @@ button {
 .layer-menu input {
   accent-color: #8ab7d7;
 }
-.scenario-examples { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--border); }
-.scenario-examples summary { cursor: pointer; color: var(--muted); font: 700 9px var(--mono); text-transform: uppercase; }
-.scenario-examples button { display: block; width: 100%; margin-top: 4px; padding: 6px 7px; border: 0; border-radius: 2px; background: transparent; color: var(--text-muted); text-align: left; font-size: 9px; }
-.scenario-examples button:hover { background: #7ca8c218; color: inherit; }
+.scenario-menu {
+  position: absolute;
+  z-index: 650;
+  top: 62px;
+  right: 20px;
+  width: 220px;
+  padding: 17px;
+}
+.scenario-menu h3 { font: 9px var(--mono); letter-spacing: 1px; color: #899fac; margin-bottom: 9px; }
+.scenario-menu button { display: block; width: 100%; margin-top: 4px; padding: 7px; border: 0; border-radius: 2px; background: transparent; color: var(--text-muted); text-align: left; font-size: 10px; }
+.scenario-menu button:hover { background: #7ca8c218; color: inherit; }
 .aircraft-icon {
   background: none;
   border: 0;
@@ -1941,6 +1948,10 @@ button {
     min-width: 0;
   }
   .layer-menu {
+    right: 12px;
+    top: 55px;
+  }
+  .scenario-menu {
     right: 12px;
     top: 55px;
   }

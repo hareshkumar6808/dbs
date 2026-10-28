@@ -52,6 +52,7 @@ export default function App() {
     disruptions: true,
   });
   const [layersOpen, setLayersOpen] = useState(false);
+  const [scenarioExamplesOpen, setScenarioExamplesOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [alternates, setAlternates] = useState<Alternate[]>([]);
   const [history, setHistory] = useState<Position[]>([]);
@@ -526,6 +527,15 @@ export default function App() {
                 <LayersIcon size={16} />
                 <span>Layers</span>
               </button>
+              <button
+                className={scenarioExamplesOpen ? "active" : ""}
+                title="Example scenario"
+                aria-label="Example scenario"
+                onClick={() => setScenarioExamplesOpen(!scenarioExamplesOpen)}
+              >
+                <FlaskConical size={15} />
+                <span>Example scenario</span>
+              </button>
             </div>
           </div>
           {layersOpen && (
@@ -547,19 +557,21 @@ export default function App() {
                   </span>
                 </label>
               ))}
-              <details className="scenario-examples">
-                <summary>Scenario examples</summary>
-                {(state?.scenario_examples ?? []).map((scenario) => (
-                  <button key={scenario.key} onClick={() => {
-                    const exampleId = scenario.flight_ids[0];
-                    if (exampleId) select(exampleId);
-                    setScenarioFlightIds(scenario.flight_ids);
-                    setLayersOpen(false);
-                    if (scenario.key === "weather") setLayers((value) => ({ ...value, weather: true }));
-                    if (scenario.key === "airspace") setLayers((value) => ({ ...value, airspace: true }));
-                  }}>{scenario.label}</button>
-                ))}
-              </details>
+            </div>
+          )}
+          {scenarioExamplesOpen && (
+            <div className="scenario-menu panel">
+              <h3>EXAMPLE SCENARIO</h3>
+              {(state?.scenario_examples ?? []).map((scenario) => (
+                <button key={scenario.key} onClick={() => {
+                  const exampleId = scenario.flight_ids[0];
+                  if (exampleId) select(exampleId);
+                  setScenarioFlightIds(scenario.flight_ids);
+                  setScenarioExamplesOpen(false);
+                  if (scenario.key === "weather") setLayers((value) => ({ ...value, weather: true }));
+                  if (scenario.key === "airspace") setLayers((value) => ({ ...value, airspace: true }));
+                }}>{scenario.label}</button>
+              ))}
             </div>
           )}
           {error && state && (
