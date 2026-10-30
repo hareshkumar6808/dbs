@@ -2074,6 +2074,61 @@ button {
 [data-theme="light"] .airport-label.leaflet-tooltip {
   color: #314d5c;
 }
+
+/* Final layout pass: stronger header, full-height tool rail, and aligned legend. */
+*,
+*::before,
+*::after {
+  border-color: #05080b;
+}
+.topbar {
+  height: 82px;
+  min-height: 82px;
+  background: #080d12;
+  border-bottom-color: #05080b;
+}
+.map-action-menu {
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 240px;
+  border-radius: 0;
+  border-width: 0 0 0 1px;
+}
+.map-action-menu.panel-visible { right: 356px; }
+.map-topline { right: 258px; }
+.map-bottom {
+  right: 258px;
+  flex-wrap: wrap;
+}
+.map-legend {
+  flex-wrap: wrap;
+}
+.map-legend span {
+  width: 112px;
+  min-width: 112px;
+  justify-content: center;
+  padding-inline: 8px;
+}
+@media (min-width: 1600px) {
+  .map-action-menu.panel-visible { right: 398px; }
+}
+@media (max-width: 700px) {
+  .topbar {
+    height: 68px;
+    min-height: 68px;
+  }
+  .map-action-menu {
+    width: 168px;
+  }
+  .map-action-menu.panel-visible { display: none; }
+  .map-topline { right: 180px; }
+  .map-bottom { right: 180px; }
+  .map-legend span {
+    width: 100px;
+    min-width: 100px;
+  }
+}
 [data-theme="light"] .flight-tooltip.leaflet-tooltip,
 [data-theme="light"] .leaflet-popup-content-wrapper,
 [data-theme="light"] .leaflet-popup-tip {
