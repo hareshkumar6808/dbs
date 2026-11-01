@@ -116,7 +116,7 @@ test("copilot returns database results and mobile controls remain usable", async
   await page
     .getByRole("button", { name: "Which flights are high risk?", exact: true })
     .click();
-  await expect(page.getByText("DATABASE RESULT")).toBeVisible({
+  await expect(page.getByText("Database answer")).toBeVisible({
     timeout: 30000,
   });
   await expect(page.locator(".query-item").first()).toBeVisible();

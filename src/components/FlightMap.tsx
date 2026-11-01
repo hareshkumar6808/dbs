@@ -26,7 +26,10 @@ function Focus({ flight, airport, reset, scenarioFlights }: { flight?: Flight; a
     if (!key) { lastScenario.current = ""; return; }
     if (key === lastScenario.current) return;
     lastScenario.current = key;
-    const points = scenarioFlights.flatMap((item) => item.operational_geometry.coordinates.map(latlng));
+    const points = [
+      ...scenarioFlights.flatMap((item) => item.operational_geometry.coordinates.map(latlng)),
+      ...scenarioFlights.flatMap((item) => item.position ? [latlng(item.position.coordinates)] : []),
+    ];
     if (points.length) map.fitBounds(points, { padding: [90, 90], maxZoom: 6, animate: false });
   }, [scenarioFlights, map]);
   return null;
