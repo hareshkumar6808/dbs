@@ -104,7 +104,7 @@ export default function Copilot({
                               {item.risk && <b className={item.risk.level.toLowerCase()}>{item.risk.level}</b>}
                             </button>
                           ) : <>
-                            <strong>{item.iata_code ?? item.flight_number ?? item.route_code ?? item.zone_name ?? item.weather_type ?? item.registration_number ?? item.aircraft_id ?? item.flight_id ?? `Record ${i + 1}`}</strong>
+                            <strong>{item.iata_code ?? item.flight_number ?? item.route_code ?? item.zone_name ?? (item as any).weather_type ?? (item as any).registration_number ?? item.aircraft_id ?? item.flight_id ?? `Record ${i + 1}`}</strong>
                             <span>{Object.entries(item).filter(([key, value]) => value != null && !["iata_code", "flight_number", "route_code", "zone_name", "weather_type", "registration_number", "flight_id", "aircraft_id", "risk"].includes(key)).slice(0, 4).map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`).join(" · ")}</span>
                             {item.distance_km != null && <b>{Number(item.distance_km).toLocaleString(undefined, { maximumFractionDigits: 1 })} km</b>}
                           </>}
