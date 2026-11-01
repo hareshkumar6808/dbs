@@ -340,7 +340,11 @@ def query(db, question):
     if country_match:
         result = [row for row in result if row.get("country", "").lower() == country_match.group(1).lower()]
         items = [{"label": row.get("iata_code", ""), "detail": f"{row.get('city', '')}, {row.get('country', '')}"} for row in result]
-        return {"answer":f"I found {len(items)} matching airports in {country_match.group(1)}.","items":items,"kind":"airport","mode":"database","explanation":"Filtered airport records by country."}
+        places = ", ".join(row.get("city", "") for row in result if row.get("city"))
+        summary = f"I found {len(items)} matching airports in {country_match.group(1)}."
+        if places:
+            summary += f" Cities include {places}."
+        return {"answer":summary,"items":items,"kind":"airport","mode":"database","explanation":"Filtered airport records by country."}
     if entity == "flight" and "weather" in q:
         explanation="Flight routes intersect active weather polygons."
     elif entity == "flight" and ("affected" in q or "impact" in q or "disruption" in q):
