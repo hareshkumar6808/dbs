@@ -96,6 +96,7 @@ button {
   min-height: 69px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   border-bottom: 1px solid var(--border);
   padding: 0 23px;
   gap: 42px;
@@ -135,8 +136,7 @@ button {
   display: flex;
   gap: 26px;
   align-self: stretch;
-  padding-right: 26px;
-  border-right: 1px solid var(--border);
+  margin-left: auto;
 }
 .topbar nav button {
   font-size: 12px;
@@ -152,7 +152,6 @@ button {
   border-color: #86b5d9;
 }
 .header-status {
-  margin-left: auto;
   display: flex;
   align-items: center;
   gap: 22px;
@@ -594,6 +593,10 @@ button {
   display: flex;
   gap: 7px;
   pointer-events: auto;
+  position: fixed;
+  top: 82px;
+  right: 20px;
+  z-index: 1000;
 }
 .map-toolbar button {
   height: 33px;
@@ -947,17 +950,16 @@ button {
 .flight-panel,
 .tool-panel {
   position: absolute;
-  inset: 0 0 0 auto;
-  width: 342px;
-  min-width: 342px;
-  border: 0;
-  border-left: 1px solid #34434e;
-  border-radius: 0;
+  inset: 0 auto 0 0;
+  width: min(350px, 30%);
+  max-width: 400px;
+  height: 100vh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  z-index: 1200;
   display: flex;
   flex-direction: column;
   box-shadow: none;
-  z-index: 700;
-  background: #0d141a;
   min-height: 0;
 }
 .panel-heading {

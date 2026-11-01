@@ -195,20 +195,22 @@ export default function App() {
             <small>Flights, routes and disruptions</small>
           </span>
         </a>
-        <nav>
-          <button
-            className={!tool ? "active" : ""}
-            onClick={closeTool}
-          >
-            <MapIcon size={15} /> Airspace
-          </button>
-          <button
-            className={tool === "lab" ? "active" : ""}
-            onClick={() => openTool("lab")}
-          >
-            <FlaskConical size={15} /> Disruption lab
-          </button>
-        </nav>
+
+
+          <nav>
+            <button
+              className={!tool ? "active" : ""}
+              onClick={closeTool}
+            >
+              <MapIcon size={15} /> Airspace
+            </button>
+            <button
+              className={tool === "lab" ? "active" : ""}
+              onClick={() => openTool("lab")}
+            >
+              <FlaskConical size={15} /> Disruption lab
+            </button>
+          </nav>
         <div className="header-status">
           <span className="utc-clock">
             {state ? time(state.generated_at) : "--:--"} <small>UTC</small>
