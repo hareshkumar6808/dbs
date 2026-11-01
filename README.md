@@ -104,7 +104,7 @@ Resolving a demo event closes its impacts and its generated weather polygon. Bas
 
 `python -m scripts.sync_graph` initializes Neo4j uniqueness constraints and synchronizes only operational Airport, Flight, Aircraft and Disruption projections. Nodes are namespaced `AeroPulse*`; relationships are `DEPARTS_FROM`, `ARRIVES_AT`, `USES_AIRCRAFT`, `NEXT_FLIGHT` and `AFFECTS`. Graph changes are transactional. PostgreSQL remains the source of truth. Cascades return root, target, path, depth, remaining delay and reason. Missing Neo4j credentials or connection errors fall back to an equivalent recursive SQL traversal. A selected flight without impacts uses an explicitly labeled 90-minute what-if; the network-wide endpoint uses persisted disruption delays.
 
-The operations copilot recognizes a small, documented set of intents: high risk, weather exposure, city/airport disruption impacts, alternate airports, restricted airspace intersections and downstream impacts. Every answer uses database queries. Unsupported questions return examples rather than invented answers. See `backend/copilot.py` for the modular intent handler.
+The operations copilot is a keyless, schema-aware query planner across all 13 domain tables. It converts natural-language requests into fixed, parameterized, read-only database queries. It supports record counts and grouped comparisons, filters by airport, route, airline, status and time, spatial questions, risk, weather, airspace, runways, schedules, disruptions and impacts. Answers explain the records and method used; unclear requests ask for the missing detail instead of returning unrelated flights. No external AI service or API key is used. See `backend/copilot.py`.
 
 ## Live provider
 
