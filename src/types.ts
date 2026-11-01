@@ -175,15 +175,33 @@ export type Layers = {
 export type CopilotResult = {
   answer: string;
   kind?: string;
+  mode?: "database";
+  explanation?: string;
+  truncated?: boolean;
   items: ({
     label?: string;
     detail?: string;
     flight_id?: number;
+    aircraft_id?: number;
     flight_number?: string;
+    airline_name?: string;
     route_code?: string;
+    origin?: string;
+    destination?: string;
+    flight_status?: string;
+    distance_km?: number;
+    iata_code?: string;
+    airport_name?: string;
+    city?: string;
+    country?: string;
+    disruption_type?: string;
+    impact_type?: string;
+    record_count?: number;
     zone_name?: string;
     risk?: Risk;
   } & Partial<Alternate>)[];
   examples?: string[];
 };
+
+
 
