@@ -113,7 +113,7 @@ def _count(db, entity, question, q, airport, airline):
             clauses.extend(["f.scheduled_arrival>now()-interval '90 minutes'", "f.scheduled_departure<now()+interval '6 hours'"])
     elif entity == "airport" and "india" in q:
         clauses.append("lower(country)='india'")
-    base_from = LIST_SQL[entity].split(" FROM ", 1)[1]
+    base_from = "flight" if entity == "flight" and not clauses else LIST_SQL[entity].split(" FROM ", 1)[1]
     sql = "SELECT count(*) AS n FROM " + base_from
     if clauses:
         sql += " WHERE " + " AND ".join(clauses)
@@ -148,8 +148,10 @@ def _filters(db, entity, question, q, airport, airline):
         number = re.search(r"\b([a-z]{2})\s?(\d{2,5})\b", question, re.I)
         if number:
             clauses.append("upper(f.flight_number)=:flight_number"); params["flight_number"] = (number.group(1)+number.group(2)).upper()
-        mentions=_airport_mentions(question,rows(db,"SELECT airport_id,iata_code,city FROM airport"))
-        if len(mentions)>=2 and re.search(r"\bfrom\b",q) and re.search(r"\bto\b",q):
+        mentions=[]
+        if re.search(r"\bfrom\b",q) and re.search(r"\bto\b",q):
+            mentions=_airport_mentions(question,rows(db,"SELECT airport_id,iata_code,city FROM airport"))
+        if len(mentions)>=2:
             clauses.append("o.airport_id=:origin_id AND d.airport_id=:destination_id")
             params["origin_id"],params["destination_id"]=mentions[0]["airport_id"],mentions[1]["airport_id"]
         if "high risk" in q or ("high" in q and "risk" in q):
@@ -265,7 +267,16 @@ def _grouped(db, question, q, entity):
 def query(db, question):
     q = question.lower().strip()
     if any(word in q for word in ("schema", "tables", "database structure", "what data", "what information")):
-        return {"answer":"AeroPulse stores airports, airlines, aircraft and aircraft types, routes, flights and legs, timestamped positions, runways, weather, airspace, disruptions and disruption impacts. You can ask for counts, lists, filters, comparisons, schedules, routes, airport proximity, weather exposure, risk and disruption effects.","items":[],"kind":"schema","mode":"database","explanation":"The answer describes the application’s PostgreSQL/PostGIS data model."}
+        return {"answer":"AeroPulse stores airports, airlines, aircraft and aircraft types, routes, flights and legs, timestamped positions, runways, weather, airspace, disruptions and disruption impacts in PostgreSQL with PostGIS. You can ask for counts, lists, filters, comparisons, schedules, routes, airport proximity, weather exposure, risk and disruption effects.","items":[],"kind":"schema","mode":"database","explanation":"The answer describes the application’s PostgreSQL/PostGIS data model."}
+
+    entity = "flight" if ("most flights" in q or "flights by airline" in q or "flight count by airline" in q) else _entity(q)
+    if not entity and not any(word in q for word in ("alternate", "divert", "restricted", "airspace")):
+        return _need_detail("I cannot answer that question from the AeroPulse operational database. Ask about flights, airports, airlines, aircraft, models, routes, legs, positions, runways, weather, airspace, disruptions or impacts.")
+
+    counting = any(word in q for word in ("how many", "count", "total", "number of"))
+    if entity == "flight" and counting and "database" in q:
+        count = _count(db, entity, question, q, None, None)
+        return {"answer":f"There are {count} flights in the database, including historical records.","items":[{"record_count":count}],"kind":entity,"mode":"database","explanation":"Exact count of all retained flight records."}
 
     airports = rows(db, "SELECT airport_id,iata_code,city FROM airport")
     airport = _airport(question, airports)
@@ -276,9 +287,8 @@ def query(db, question):
     if radius:
         return _nearby_flights(db, question, radius, radius[1])
 
-    airlines = rows(db, "SELECT airline_id,iata_code,airline_name FROM airline")
-    airline = next((a for a in airlines if a["airline_name"].lower() in q or re.search(r"\b"+re.escape(a["iata_code"].lower())+r"\b",q)),None)
-    entity = "flight" if ("most flights" in q or "flights by airline" in q or "flight count by airline" in q) else _entity(q)
+    airlines = rows(db, "SELECT airline_id,iata_code,airline_name FROM airline") if entity in ("flight", "airline", "aircraft") else []
+    airline = next((a for a in airlines if a.get("airline_name", "").lower() in q or (a.get("iata_code") and re.search(r"\b"+re.escape(a["iata_code"].lower())+r"\b",q))),None)
 
     # Airport-to-airport distance is a distinct question from nearby aircraft.
     if any(word in q for word in ("distance between", "how far", "route distance")) and len(re.findall(r"\b[A-Z]{3}\b",question))>=2:
@@ -310,6 +320,10 @@ def query(db, question):
 
     sql=LIST_SQL[entity]
     clauses,params=_filters(db,entity,question,q,airport,airline)
+    if entity == "flight" and "delayed" in q:
+        flights = intelligence.flights(db)
+        matched = [f for f in flights if f.get("estimated_delay_minutes", 0) > 0 or any(i.get("estimated_delay_minutes", 0) > 0 for i in f.get("impacts", []))]
+        return {"answer":f"I found {len(matched)} flights with estimated delays.","items":matched[:100],"kind":"flights","mode":"database","explanation":"Uses operational flight delay estimates and disruption impact delays."}
     if entity == "flight" and ("high risk" in q or ("high" in q and "risk" in q)):
         fs=intelligence.flights(db)
         matched=[f for f in fs if f["risk"]["level"]=="HIGH"]
@@ -322,6 +336,11 @@ def query(db, question):
     limit=min(int(limit_match.group(1)),100) if limit_match else 100
     sql += f" ORDER BY {order} LIMIT {limit}"
     result=rows(db,sql,**params)
+    country_match = re.search(r"\b(?:in|of)\s+(India|UAE|United States|United Kingdom|Singapore|Australia|Qatar|Germany|France)\b", question, re.I) if entity == "airport" else None
+    if country_match:
+        result = [row for row in result if row.get("country", "").lower() == country_match.group(1).lower()]
+        items = [{"label": row.get("iata_code", ""), "detail": f"{row.get('city', '')}, {row.get('country', '')}"} for row in result]
+        return {"answer":f"I found {len(items)} matching airports in {country_match.group(1)}.","items":items,"kind":"airport","mode":"database","explanation":"Filtered airport records by country."}
     if entity == "flight" and "weather" in q:
         explanation="Flight routes intersect active weather polygons."
     elif entity == "flight" and ("affected" in q or "impact" in q or "disruption" in q):
