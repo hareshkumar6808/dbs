@@ -176,6 +176,8 @@ export type CopilotResult = {
   answer: string;
   kind?: string;
   items: ({
+    label?: string;
+    detail?: string;
     flight_id?: number;
     flight_number?: string;
     route_code?: string;

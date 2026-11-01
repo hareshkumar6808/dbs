@@ -24,6 +24,7 @@ def test_airport_country_filter():
     assert '1 matching' in result['answer']
     assert 'Chennai' in result['answer']
     assert 'Dubai' not in result['answer']
+    assert result['items'] == [{'label': 'MAA', 'detail': 'Chennai, India'}]
 
 
 def test_delayed_flights_include_disruption_delays():

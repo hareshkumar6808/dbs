@@ -65,7 +65,9 @@ export default function DisruptionPanel({
       setResult(r);
       onAlternates(r.alternates);
       onFocus([...r.direct_flights.map((f) => f.flight_id), ...r.downstream_flights.map((f) => f.flight_id)]);
-      await onChange();
+      // The simulation response already contains the result. Refresh shared map state
+      // in the background so it does not keep the form in its busy state.
+      void onChange();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -83,7 +85,7 @@ export default function DisruptionPanel({
         onAlternates([]);
         onFocus([]);
       }
-      await onChange();
+      void onChange();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -101,7 +103,7 @@ export default function DisruptionPanel({
       setResult(undefined);
       onAlternates([]);
       onFocus([]);
-      await onChange();
+      void onChange();
     } catch (e) {
       setError((e as Error).message);
       await onChange();
