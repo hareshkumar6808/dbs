@@ -2,7 +2,9 @@ name: AeroPulse checks
 on: [push, pull_request]
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    # Keep Playwright's system dependency install on a known supported image.
+    # ubuntu-latest is migrating to Ubuntu 26, which caused the browser setup step to fail.
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgis/postgis:17-3.5
