@@ -166,6 +166,13 @@ export default function App() {
     setReplay(undefined);
     setAlternates([]);
   };
+  useEffect(() => {
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && tool) closeTool();
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [tool]);
   const filtered = !!(search || airline || status || riskFilter || affected);
   const mappedVisible = useMemo(() => visible.filter((f) => !!f.position), [visible]);
   const visibleMetrics = useMemo(() => ({
@@ -214,8 +221,9 @@ export default function App() {
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
           </button>
           <button
-            className="copilot-toggle"
+            className={`copilot-toggle ${tool === "copilot" ? "active" : ""}`}
             aria-label="Operations copilot"
+            aria-pressed={tool === "copilot"}
             onClick={() => openTool("copilot")}
           >
             <MessageSquare size={15} />
@@ -225,7 +233,7 @@ export default function App() {
       </header>
       <div className="workspace">
         <aside
-          className={`traffic-sidebar ${sidebarOpen ? "open" : "collapsed"}`}
+          className={`traffic-sidebar ${tool ? "tool-hidden" : sidebarOpen ? "open" : "collapsed"}`}
           aria-label="Traffic explorer"
         >
           <div className="sidebar-title">
@@ -456,7 +464,7 @@ export default function App() {
             </button>
           </div>
         </aside>
-        <main className="map-stage">
+        <main className={`map-stage ${tool ? "tool-hidden" : ""}`}>
           {state ? (
             <FlightMap
               state={state}
@@ -534,43 +542,6 @@ export default function App() {
               </button>
             </div>
           </div>
-          <nav className={`map-action-menu ${tool ? "panel-visible" : ""}`} aria-label="Quick access">
-            <div className="map-action-heading">
-              <strong>Tools</strong>
-            </div>
-            <button
-              className={sidebarOpen ? "active" : ""}
-              aria-label="Flights and search"
-              aria-expanded={sidebarOpen}
-              onClick={() => {
-                setTool(null);
-                setSidebarOpen((value) => !value);
-              }}
-            >
-              <Search size={18} /><span>Flights &amp; search</span>
-            </button>
-            <button
-              className={tool === "lab" ? "active" : ""}
-              aria-label="Open Disruption Lab"
-              onClick={() => openTool("lab")}
-            >
-              <FlaskConical size={18} /><span>Disruption Lab</span>
-            </button>
-            <button
-              className={tool === "copilot" ? "active" : ""}
-              aria-label="Ask Copilot"
-              onClick={() => openTool("copilot")}
-            >
-              <MessageSquare size={18} /><span>Ask Copilot</span>
-            </button>
-            <button
-              className={layersOpen ? "active" : ""}
-              aria-label="Map layers"
-              onClick={() => setLayersOpen((value) => !value)}
-            >
-              <LayersIcon size={18} /><span>Map layers</span>
-            </button>
-          </nav>
           {layersOpen && (
             <div className="layer-menu panel">
               <h3>MAP LAYERS</h3>
@@ -697,4 +668,6 @@ export default function App() {
     </div>
   );
 }
+
+
 
