@@ -108,6 +108,7 @@ export default function FlightPanel({
           <X size={16} />
         </button>
       </div>
+      <div className="panel-scroll">
       <div className="flight-identity">
         <div className="airline-mark">{flight.airline_code}</div>
         <div>
@@ -151,7 +152,6 @@ export default function FlightPanel({
           <span className={`risk-dot ${flight.risk.level.toLowerCase()}`} />
         </button>
       </div>
-      <div className="panel-scroll">
         {tab === "overview" ? (
           <>
             <figure className="aircraft-photo" style={{ backgroundImage: "url(/aircraft-fallback.webp)", backgroundSize: "cover", backgroundPosition: "center" }}>
@@ -389,12 +389,12 @@ export default function FlightPanel({
             {error}
           </p>
         )}
-      </div>
       <div className="panel-foot">
         Last position {time(flight.recorded_at)} UTC ·{" "}
         {flight.recorded_at
           ? new Date(flight.recorded_at).toLocaleDateString("en-GB")
           : "Not yet tracked"}
+      </div>
       </div>
     </aside>
   );

@@ -46,6 +46,8 @@ Deploy the repository root to Vercel. `vercel.json` builds the Vite frontend and
 | `ADMIN_TOKEN` | Optional bearer token for mutations. Unset in the intentionally shared public demo. Required outside demo mode. Never expose in `VITE_*`. |
 | `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` | Optional Aura connection, usually `neo4j+s://…`. Missing or unavailable Neo4j uses PostgreSQL recursive dependency analysis. |
 | `OPENSKY_CLIENT_ID`, `OPENSKY_CLIENT_SECRET` | Optional server-only OpenSky OAuth credentials. |
+| `OPENAI_API_KEY` | Optional server-only OpenAI key. When configured, Operations Copilot generates answers using the Responses API and a validated read-only SQL query against the PostGIS database. Without it, the keyless fixed-query Copilot remains available. |
+| `OPENAI_MODEL` | Model used for grounded Copilot answers. Defaults to `gpt-6-luna`. |
 | `CRON_SECRET` | Bearer secret for `/api/tracking/tick` when an external scheduler invokes it. |
 | `VITE_API_URL` | Optional separate backend origin (without `/api`). Leave empty on Vercel for same-origin requests. This is the only frontend environment variable. |
 

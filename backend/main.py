@@ -12,7 +12,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from backend.config import settings
 from backend.db import session, rows, one
-from backend import intelligence, disruptions, graph, copilot, tracking
+from backend import intelligence, disruptions, graph, copilot, tracking, ai_copilot
 from backend.schemas import Simulation, CopilotQuestion
 
 app = FastAPI(
@@ -350,7 +350,17 @@ def cascade(db: DB, flight_id: int | None = None):
 
 @api.post("/copilot/query")
 def ask(request: CopilotQuestion, db: DB):
+    if settings().openai_api_key:
+        try:
+            return ai_copilot.answer(db, request.question)
+        except RuntimeError as exc:
+            raise HTTPException(502, str(exc)) from exc
     return copilot.query(db, request.question)
+
+
+@api.get("/copilot/status")
+def copilot_status():
+    return {"ai_enabled": bool(settings().openai_api_key), "model": settings().openai_model if settings().openai_api_key else None}
 
 
 def _scenario_examples(fs):

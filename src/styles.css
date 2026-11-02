@@ -953,7 +953,7 @@ button {
   inset: 0 auto 0 0;
   width: min(350px, 30%);
   max-width: 400px;
-  height: 100vh;
+  height: 100%;
   background: var(--surface);
   border-left: 1px solid var(--border);
   z-index: 1200;
@@ -2159,6 +2159,7 @@ button {
   inset: auto !important;
   z-index: auto !important;
   width: 100% !important;
+  height: 100% !important;
   min-width: 0 !important;
   flex: 1 1 auto;
   min-height: 0;
@@ -2186,6 +2187,7 @@ button {
 .workspace-close { width: 36px; height: 36px; border: 1px solid var(--border); border-radius: 9px; display: grid; place-items: center; }
 .workspace-close:hover { background: #263642; color: #fff; }
 .copilot-content { flex: 1; min-height: 0; overflow: auto; scroll-behavior: smooth; }
+.copilot-composer-wrap { flex: 0 0 auto; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
 .copilot-welcome { width: min(760px, calc(100% - 40px)); margin: clamp(40px, 9vh, 100px) auto 56px; }
 .welcome-mark { display: grid; place-items: center; width: 38px; height: 38px; border-radius: 11px; background: #203b4d; color: #a0d3f0; margin-bottom: 23px; }
 .copilot-welcome h2 { margin: 9px 0; font-size: clamp(25px, 3vw, 34px); font-weight: 500; letter-spacing: -.8px; }

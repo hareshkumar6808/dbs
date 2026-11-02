@@ -1,4 +1,4 @@
-import { FormEvent, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { ArrowUp, Bot, Database, MessageSquare, Sparkles, X } from "lucide-react";
 import type { CopilotResult, Alternate } from "../types";
 import { api } from "../services/api";
@@ -23,8 +23,13 @@ export default function Copilot({
   const [question, setQuestion] = useState("");
   const [history, setHistory] = useState<Exchange[]>([]);
   const [busy, setBusy] = useState(false);
+  const [aiEnabled, setAiEnabled] = useState(false);
   const [pendingQuestion, setPendingQuestion] = useState("");
   const scroll = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    api.copilotStatus().then((status) => setAiEnabled(status.ai_enabled)).catch(() => setAiEnabled(false));
+  }, []);
 
   async function ask(raw: string) {
     const q = raw.trim();
@@ -60,7 +65,7 @@ export default function Copilot({
             <span className="eyebrow">AEROPULSE INTELLIGENCE</span>
             <h1>Operations copilot</h1>
           </div>
-          <span className="copilot-capability"><Database size={13} /> Schema-aware · no API key</span>
+          <span className="copilot-capability"><Database size={13} /> {aiEnabled ? "AI answers · SELECT only" : "AI setup required · SELECT only"}</span>
         </div>
         <button className="icon-button workspace-close" aria-label="Close copilot" onClick={onClose} title="Close copilot (Esc)">
           <X size={18} />
@@ -88,7 +93,7 @@ export default function Copilot({
                 <div className="copilot-question"><span className="user-avatar">OP</span><p>{exchange.question}</p></div>
                 {exchange.result ? (
                   <div className="copilot-response">
-                    <div className="response-heading"><span className="tool-icon small"><Bot size={15} /></span><strong>AeroPulse</strong><span className="answer-mode"><Database size={12} /> Database answer</span></div>
+                    <div className="response-heading"><span className="tool-icon small"><Bot size={15} /></span><strong>AeroPulse</strong><span className="answer-mode"><Database size={12} /> {exchange.result.mode === "ai" ? "AI answer · database grounded" : "Database answer"}</span></div>
                     <p className="answer-copy">{exchange.result.answer}</p>
                     {exchange.result.explanation && <div className="answer-basis"><span>HOW THIS WAS ANSWERED</span><p>{exchange.result.explanation}</p></div>}
                     {!!exchange.result.items.length && <div className="query-results">
@@ -130,3 +135,4 @@ export default function Copilot({
     </section>
   );
 }
+

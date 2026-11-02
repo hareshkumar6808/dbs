@@ -8,9 +8,9 @@ import type {
   SimulationResult,
 } from "../types";
 const base = (import.meta.env.VITE_API_URL || "").replace(/\/$/, "");
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(path: string, options: RequestInit = {}, timeoutMs = 25000): Promise<T> {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 25000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${base}/api${path}`, {
       cache: "no-store",
@@ -61,10 +61,11 @@ export const api = {
     request<{ engine: string; paths: CascadePath[] }>(
       `/intelligence/cascade${id ? `?flight_id=${id}` : ""}`,
     ),
+  copilotStatus: () => request<{ ai_enabled: boolean; model: string | null }>("/copilot/status"),
   ask: (question: string) =>
     request<CopilotResult>("/copilot/query", {
       method: "POST",
       body: JSON.stringify({ question }),
-    }),
+    }, 50000),
 };
 
