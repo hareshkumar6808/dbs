@@ -198,10 +198,9 @@ export type CopilotResult = {
     impact_type?: string;
     record_count?: number;
     zone_name?: string;
+    weather_type?: string;
+    registration_number?: string;
     risk?: Risk;
   } & Partial<Alternate>)[];
   examples?: string[];
 };
-
-
-

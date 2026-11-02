@@ -70,7 +70,7 @@ test("shared scenario persists across pages and resolves", async ({
     await expect(
       page.getByText(`SCENARIO #${event.disruption_id} · RESULTS`),
     ).toBeVisible();
-    await expect(page.locator(".scenario-label").first()).toBeVisible();
+    await expect(page.locator(".scenario-label").first()).toContainText("SCENARIO");
     await page.getByRole("button", { name: "Close disruption lab" }).click();
     await expect(page.locator(".scenario-label")).toHaveCount(0);
     await expect(page.locator('.aircraft-silhouette[fill="#f27762"]')).toHaveCount(0);
@@ -114,9 +114,9 @@ test("copilot returns database results and mobile controls remain usable", async
     .getByRole("button", { name: "Operations copilot", exact: true })
     .click();
   await page
-    .getByRole("button", { name: "Which flights are high risk?", exact: true })
+    .getByRole("button", { name: "Which flights are high risk and why?", exact: true })
     .click();
-  await expect(page.getByText("DATABASE RESULT")).toBeVisible({
+  await expect(page.getByText("Database answer")).toBeVisible({
     timeout: 30000,
   });
   await expect(page.locator(".query-item").first()).toBeVisible();
