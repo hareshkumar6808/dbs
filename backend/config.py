@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     neo4j_password: str = ""
     opensky_client_id: str = ""
     opensky_client_secret: str = ""
+    openai_api_key: str = ""
+    openai_model: str = "gpt-6-luna"
     cron_secret: str = ""
 
     @property

@@ -175,10 +175,11 @@ export type Layers = {
 export type CopilotResult = {
   answer: string;
   kind?: string;
-  mode?: "database";
+  mode?: "database" | "ai";
   explanation?: string;
   truncated?: boolean;
   items: ({
+    [key: string]: unknown;
     label?: string;
     detail?: string;
     flight_id?: number;
@@ -204,3 +205,6 @@ export type CopilotResult = {
   } & Partial<Alternate>)[];
   examples?: string[];
 };
+
+
+
