@@ -59,7 +59,7 @@ if (-not (Test-Path (Join-Path $projectDir "docker-compose.yml"))) {
     $tempDir = Join-Path $env:TEMP "aeropulse-extract"
     Remove-Item $tempZip -Force -ErrorAction SilentlyContinue
     Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
-    Invoke-WebRequest $repoZip -OutFile $tempZip
+    Invoke-WebRequest $repoZip -OutFile $tempZip -UseBasicParsing
     Expand-Archive $tempZip -DestinationPath $tempDir -Force
     New-Item -ItemType Directory -Path (Split-Path $projectDir) -Force | Out-Null
     Move-Item (Join-Path $tempDir "dbs-main") $projectDir
