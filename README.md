@@ -8,13 +8,61 @@ The map uses category-specific, heading-aware aircraft silhouettes and renders a
 
 Traffic, weather, airspace and operational estimates are **synthetic demonstrations**, not live operational advice or navigation data. Airport coordinates and runway dimensions are approximate reference values, not a certified airport dataset.
 
-## Run
+## Run locally with Docker (recommended)
 
-Requirements: Python 3.12–3.14, Node.js 22.12+ (or 24), PostgreSQL 17+ with PostGIS, and an optional Neo4j Aura database.
+The easiest way to run AeroPulse is Docker Compose. This starts the complete local stack:
+
+- React + Leaflet frontend
+- FastAPI backend
+- PostgreSQL 17 with PostGIS
+- Neo4j Community for aircraft-rotation graph analysis
+
+**Requirements:** Docker Desktop with the Docker Compose plugin. On Windows, install Docker Desktop and make sure its Linux container engine is running.
+
+Open PowerShell, Windows Terminal, or a shell and run:
+
+```sh
+git clone https://github.com/hareshkumar6808/dbs.git
+cd dbs
+docker compose up --build
+```
+
+The first run downloads the container images, installs dependencies, creates the database schema, loads the deterministic demonstration network, and synchronizes the graph. It can take several minutes. Keep this terminal open while using the application.
+
+Open:
+
+| Service | Address |
+| --- | --- |
+| AeroPulse application | http://localhost:3000 |
+| FastAPI health check | http://localhost:8000/health |
+| FastAPI interactive API docs | http://localhost:8000/api/docs |
+| Neo4j Browser | http://localhost:7474 |
+
+Neo4j Browser credentials: `neo4j` / `aeropulse_local_only`.
+
+No Supabase, Vercel, Neo4j Aura, OpenSky account, OpenAI key, or manually provisioned database is required. The Compose file uses a separate local PostGIS database and local Neo4j instance. The credentials in the Compose file are **for local development only**; never reuse them for a public or production deployment.
+
+To stop the stack, press `Ctrl+C`, then run:
+
+```sh
+docker compose down
+```
+
+Your database and graph data remain in Docker volumes. To remove the containers **and permanently delete all local AeroPulse database/graph data**, run:
+
+```sh
+docker compose down -v
+```
+
+The map's basemap tiles and aircraft photographs are fetched from their attributed external providers, so those visual assets require an internet connection. The synthetic flight network, database, API, disruption lab, and graph analysis run locally.
+
+### Run without Docker
+
+Requirements: Python 3.12–3.14, Node.js 22.12+ (or 24), PostgreSQL 17+ with PostGIS, and an optional Neo4j instance.
 
 ```sh
 python -m venv .venv
-# Windows: .venv\Scripts\activate
+# Windows: .venv\\Scripts\\activate
 # macOS/Linux: source .venv/bin/activate
 pip install -r requirements-dev.txt
 npm ci
@@ -24,7 +72,7 @@ python -m scripts.setup
 python -m uvicorn backend.main:app --port 8000
 ```
 
-In a second terminal, `npm run dev`. Vite proxies `/api` to the development API. Production uses same-origin `/api`; no production request depends on localhost. `python -m scripts.setup` runs Alembic migrations, versioned deterministic demo seeding and optional graph synchronization. A demo-network version upgrade rebuilds synthetic fixtures while production live-provider data is left untouched.
+In a second terminal, run `npm run dev`. Vite proxies `/api` to the development API. Production uses same-origin `/api`; no production request depends on localhost. `python -m scripts.setup` runs Alembic migrations, versioned deterministic demo seeding and optional graph synchronization. A demo-network version upgrade rebuilds synthetic fixtures while production live-provider data is left untouched.
 
 For restricted Windows environments where esbuild cannot inspect parent directories, use `npx vite build --configLoader native` or `npm run preview -- --port 5173 --configLoader native` with Node 24.
 
